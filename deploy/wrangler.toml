@@ -1,0 +1,8 @@
+# CF Worker 部署配置（如选择 wrangler 路线而非 Dashboard）
+name = "prinx-route"
+main = "cf-worker.js"
+compatibility_date = "2025-01-01"
+
+# 部署后绑路由：
+#   wrangler deploy
+#   wrangler triggers deploy --routes "sunyancai.top/prinx/*"
