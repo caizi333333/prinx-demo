@@ -1,0 +1,821 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=1920">
+<title>温控系统 / 6#胎侧四复合挤出生产线 — PRINX HMI</title>
+<link rel="stylesheet" href="../style.css?v=15">
+<style>
+  .temp-stage {
+    background: var(--bg-panel);
+    border: 1px solid var(--line-subtle);
+    margin-bottom: var(--sp-3);
+  }
+  .temp-stage-head {
+    padding: var(--sp-2) var(--sp-3);
+    border-bottom: 1px solid var(--line-subtle);
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .temp-stage-head-left { display: flex; align-items: baseline; gap: var(--sp-2); }
+  .temp-stage-id {
+    font-family: var(--ff-data);
+    font-size: 13px;
+    color: var(--accent);
+    letter-spacing: var(--tracking-mega-wide);
+    text-transform: uppercase;
+  }
+  .temp-stage-title {
+    font-family: var(--ff-cn);
+    font-size: 21px;
+    font-weight: 500;
+    color: var(--fg-primary);
+  }
+  .temp-stage-sub {
+    font-family: var(--ff-data);
+    font-size: 13px;
+    color: var(--fg-tertiary);
+    letter-spacing: var(--tracking-wide);
+    text-transform: uppercase;
+  }
+  .temp-stage-stats {
+    display: flex; align-items: baseline; gap: var(--sp-3);
+    font-family: var(--ff-data);
+    font-size: 13px;
+    letter-spacing: var(--tracking-wide);
+    color: var(--fg-tertiary);
+    text-transform: uppercase;
+  }
+  .temp-stage-stats b {
+    font-family: var(--ff-data);
+    color: var(--fg-primary);
+    font-weight: 500;
+    margin-left: 6px;
+  }
+
+  .temp-zones {
+    display: grid;
+    gap: 1px;
+    background: var(--line-subtle);
+  }
+  .temp-zones.cols-5 { grid-template-columns: repeat(5, 1fr); }
+  .temp-zones.cols-4 { grid-template-columns: repeat(4, 1fr); }
+  .temp-zones.cols-3 { grid-template-columns: repeat(3, 1fr); }
+
+  .zone {
+    background: var(--bg-panel);
+    padding: var(--sp-2);
+    display: flex; flex-direction: column; gap: var(--sp-3);
+    position: relative;
+    min-height: 100px;
+  }
+  .zone-head {
+    display: flex; justify-content: space-between; align-items: baseline;
+  }
+  .zone-name {
+    font-family: var(--ff-cn);
+    font-size: 16px;
+    color: var(--fg-secondary);
+    font-weight: 400;
+  }
+  .zone-id {
+    font-family: var(--ff-data);
+    font-size: 11px;
+    color: var(--fg-tertiary);
+    letter-spacing: var(--tracking-mega-wide);
+    text-transform: uppercase;
+  }
+  .zone-readout {
+    display: flex; align-items: baseline; gap: var(--sp-2);
+  }
+  .zone-actual {
+    font-family: var(--ff-data);
+    font-size: 45px;
+    font-weight: 400;
+    color: var(--fg-primary);
+    letter-spacing: var(--tracking-mega);
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+  }
+  .zone-actual .u {
+    font-size: 14px;
+    color: var(--fg-tertiary);
+    margin-left: 2px;
+    letter-spacing: 0;
+  }
+  .zone-readout-meta {
+    display: flex; flex-direction: column; gap: 2px;
+    margin-left: auto;
+  }
+  .zone-setpoint {
+    font-family: var(--ff-data);
+    font-size: 13px;
+    color: var(--data-setpoint);
+    letter-spacing: var(--tracking-wide);
+    font-variant-numeric: tabular-nums;
+  }
+  .zone-setpoint span { color: var(--fg-tertiary); margin-right: 4px; text-transform: uppercase; }
+  .zone-dev {
+    font-family: var(--ff-data);
+    font-size: 13px;
+    letter-spacing: var(--tracking-wide);
+    font-variant-numeric: tabular-nums;
+  }
+  .zone-dev.ok { color: var(--status-running); }
+  .zone-dev.warn { color: var(--status-warning); }
+  .zone-dev.alarm { color: var(--status-alarm); }
+
+  /* deviation horizontal bar */
+  .zone-bar {
+    height: 3px;
+    background: var(--bg-input);
+    position: relative;
+  }
+  .zone-bar::before {
+    content: '';
+    position: absolute;
+    top: -4px; bottom: -4px;
+    left: 50%;
+    width: 1px;
+    background: var(--line-strong);
+  }
+  .zone-bar-fill {
+    position: absolute;
+    top: 0; bottom: 0;
+    background: var(--accent);
+  }
+  .zone-bar-fill.warn  { background: var(--status-warning); }
+  .zone-bar-fill.alarm { background: var(--status-alarm); }
+
+  .zone.is-active::before {
+    content: '';
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    width: 2px; background: var(--accent);
+  }
+  .zone.is-warn .zone-actual { color: var(--status-warning); }
+  .zone.is-alarm .zone-actual { color: var(--status-alarm); }
+
+  /* Sparkline overlay in zone */
+  .zone-trend {
+    position: absolute;
+    right: var(--sp-3);
+    bottom: var(--sp-3);
+    width: 60px;
+    height: 18px;
+    opacity: 0.7;
+  }
+
+  /* Header summary */
+  .summary-bar {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1px;
+    background: var(--line-subtle);
+    border: 1px solid var(--line-subtle);
+    margin-bottom: var(--sp-3);
+  }
+  .summary-cell {
+    background: var(--bg-panel);
+    padding: var(--sp-2) var(--sp-3);
+    display: flex; flex-direction: column; gap: 4px;
+  }
+  .summary-label {
+    font-family: var(--ff-data);
+    font-size: 12px;
+    color: var(--fg-tertiary);
+    letter-spacing: var(--tracking-mega-wide);
+    text-transform: uppercase;
+  }
+  .summary-value {
+    font-family: var(--ff-data);
+    font-size: 38px;
+    font-weight: 400;
+    color: var(--fg-primary);
+    letter-spacing: var(--tracking-mega);
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+  }
+  .summary-value .u {
+    font-size: 14px;
+    color: var(--fg-tertiary);
+    letter-spacing: var(--tracking-wide);
+    text-transform: uppercase;
+    margin-left: 4px;
+  }
+  .summary-sub {
+    font-family: var(--ff-data);
+    font-size: 13px;
+    color: var(--fg-tertiary);
+    letter-spacing: var(--tracking-wide);
+    margin-top: 2px;
+  }
+  .summary-sub b { color: var(--accent); font-weight: 400; }
+
+  .seg-tabs {
+    display: flex;
+    gap: 1px;
+    background: var(--line-subtle);
+    border: 1px solid var(--line-default);
+    margin-bottom: var(--sp-4);
+  }
+  .seg-tab {
+    flex: 1;
+    background: var(--bg-panel);
+    padding: 12px 16px;
+    font-family: var(--ff-cn);
+    font-size: 16px;
+    color: var(--fg-secondary);
+    cursor: pointer;
+    text-align: center;
+    transition: all 140ms ease;
+    border-bottom: 2px solid transparent;
+  }
+  .seg-tab:hover { background: var(--bg-elevated); color: var(--fg-primary); }
+  .seg-tab.active {
+    color: var(--accent);
+    border-bottom-color: var(--accent);
+    background: var(--bg-elevated);
+  }
+  .seg-tab .ct {
+    font-family: var(--ff-data);
+    font-size: 12px;
+    color: var(--fg-tertiary);
+    margin-left: 6px;
+    letter-spacing: var(--tracking-wide);
+  }
+</style>
+</head>
+<body>
+
+<div class="app">
+
+  <!-- TOPBAR -->
+  <header class="topbar">
+    <a href="../design.html" class="brand" style="text-decoration:none"><span class="brand-mark">PRINX</span>
+      <span class="brand-name">HMI / <b>EXT-LINE</b></span></a>
+    <div class="row" style="margin-left: var(--sp-4);">
+      <span class="line-chip"><span class="line-chip-dot" style="background:var(--fg-tertiary);"></span>5# 胎面 <span style="opacity:.5">TREAD</span></span>
+      <span class="line-chip active"><span class="line-chip-dot"></span>6# 胎侧 <span style="opacity:.7">SIDEWALL</span></span>
+    </div>
+    <div class="topbar-spacer"></div>
+    <div class="topbar-meta">
+      <div class="topbar-meta-item">
+        <span class="topbar-meta-label">SHIFT</span>
+        <span class="topbar-meta-value">B 班</span>
+      </div>
+      <div class="topbar-meta-item">
+        <span class="topbar-meta-label">STATUS</span>
+        <span class="badge badge-running">运行</span>
+      </div>
+      <div class="clock" id="clock">14:32:08</div>
+      <div class="user-chip">
+        <div class="user-avatar">LZ</div>
+        <div class="user-chip-text"><b>李振华</b><span>LV2</span></div>
+      </div>
+    </div>
+  </header>
+
+  <!-- SIDENAV -->
+  <nav class="sidenav">
+    <a href="overview.html" class="nav-item">
+      <svg viewBox="0 0 24 24" fill="none"><path d="M3 12 L12 4 L21 12 M5 10 V20 H19 V10" stroke="currentColor" stroke-width="1.5"/></svg>
+      <span class="nav-item-label">主页</span>
+    </a>
+    <a href="recipe.html" class="nav-item">
+      <svg viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="7" height="7" stroke="currentColor" stroke-width="1.5"/><rect x="14" y="3" width="7" height="7" stroke="currentColor" stroke-width="1.5"/><rect x="3" y="14" width="7" height="7" stroke="currentColor" stroke-width="1.5"/><rect x="14" y="14" width="7" height="7" stroke="currentColor" stroke-width="1.5"/></svg>
+      <span class="nav-item-label">配方</span>
+    </a>
+    <a href="control.html" class="nav-item">
+      <svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.5"/><path d="M12 2 V5 M12 19 V22 M2 12 H5 M19 12 H22" stroke="currentColor" stroke-width="1.5"/></svg>
+      <span class="nav-item-label">闭环</span>
+    </a>
+    <a href="alarm.html" class="nav-item">
+      <svg viewBox="0 0 24 24" fill="none"><path d="M12 2 L2 22 H22 L12 2 Z" stroke="currentColor" stroke-width="1.5"/><path d="M12 9 V14 M12 17 V18" stroke="currentColor" stroke-width="1.5"/></svg>
+      <span class="nav-item-label">报警</span>
+    </a>
+    <a href="trend.html" class="nav-item">
+      <svg viewBox="0 0 24 24" fill="none"><path d="M3 17 L9 11 L13 15 L21 7" stroke="currentColor" stroke-width="1.5"/><path d="M15 7 H21 V13" stroke="currentColor" stroke-width="1.5"/></svg>
+      <span class="nav-item-label">趋势</span>
+    </a>
+    <a href="temperature.html" class="nav-item active">
+      <svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.5"/><path d="M12 2 V5 M12 19 V22 M22 12 H19 M5 12 H2 M19.07 4.93 L16.95 7.05 M7.05 16.95 L4.93 19.07 M19.07 19.07 L16.95 16.95 M7.05 7.05 L4.93 4.93" stroke="currentColor" stroke-width="1.5"/></svg>
+      <span class="nav-item-label">温控</span>
+    </a>
+    <a href="process.html" class="nav-item">
+      <svg viewBox="0 0 24 24" fill="none"><path d="M3 12 H8 L10 6 L14 18 L16 12 H21" stroke="currentColor" stroke-width="1.5"/></svg>
+      <span class="nav-item-label">工艺</span>
+    </a>
+    <a href="mes.html" class="nav-item">
+      <svg viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="18" height="18" stroke="currentColor" stroke-width="1.5"/><path d="M3 9 H21 M9 3 V21" stroke="currentColor" stroke-width="1.5"/></svg>
+      <span class="nav-item-label">MES</span>
+    </a>
+    <a href="maintenance.html" class="nav-item">
+      <svg viewBox="0 0 24 24" fill="none"><path d="M14 7 L17 4 L20 7 L17 10 Z" stroke="currentColor" stroke-width="1.5"/><path d="M14 7 L4 17 V20 H7 L17 10" stroke="currentColor" stroke-width="1.5"/></svg>
+      <span class="nav-item-label">维护</span>
+    </a>
+    <a href="report.html" class="nav-item">
+      <svg viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="18" height="18" stroke="currentColor" stroke-width="1.5"/><path d="M7 9 H17 M7 13 H17 M7 17 H13" stroke="currentColor" stroke-width="1.5"/></svg>
+      <span class="nav-item-label">报表</span>
+    </a>
+  </nav>
+
+  <!-- CANVAS -->
+  <main class="canvas">
+
+    <div class="canvas-header">
+      <div class="canvas-title">
+        <div class="canvas-title-eyebrow">P-02 · TEMPERATURE CONTROL · 温控系统</div>
+        <div class="canvas-title-text">23 个温区实时监控 · 浦林成山四复合挤出生产线</div>
+      </div>
+      <div class="canvas-actions">
+        <button class="btn btn-ghost"><span style="font-family:var(--ff-data);font-size: 13px;letter-spacing:var(--tracking-wide);text-transform:uppercase;color:var(--fg-tertiary)">↓ DOWNLOAD TCU</span></button>
+        <button class="btn">读取配方</button>
+        <button class="btn btn-primary">应用温控配方</button>
+      </div>
+    </div>
+
+    <!-- Top summary -->
+    <div class="summary-bar">
+      <div class="summary-cell">
+        <span class="summary-label">总温区数 / Zones</span>
+        <span class="summary-value">23<span class="u">ZONES</span></span>
+        <span class="summary-sub">5 模头 · 12 螺杆 · 6 辅助</span>
+      </div>
+      <div class="summary-cell">
+        <span class="summary-label">在控数 / Active</span>
+        <span class="summary-value" style="color:var(--accent)">22<span class="u">/23</span></span>
+        <span class="summary-sub"><b>1</b> 温区告警</span>
+      </div>
+      <div class="summary-cell">
+        <span class="summary-label">最大偏差 / Max Δ</span>
+        <span class="summary-value" style="color:var(--status-warning)">+1.2<span class="u">°C</span></span>
+        <span class="summary-sub">来源：下中模 / DIE-BM</span>
+      </div>
+      <div class="summary-cell">
+        <span class="summary-label">配方版本 / Recipe</span>
+        <span class="summary-value" style="font-size: 27px;">TCU-S6/2 · v2.4</span>
+        <span class="summary-sub">下传时间：14:08:22 · 已生效</span>
+      </div>
+    </div>
+
+    <!-- Section 1: Die head -->
+    <div class="temp-stage">
+      <div class="temp-stage-head">
+        <div class="temp-stage-head-left">
+          <span class="temp-stage-id">DIE-HEAD · 复合模头</span>
+          <span class="temp-stage-title">5 段模头温度</span>
+          <span class="temp-stage-sub">SETPOINT 75.0 °C UNIFORM</span>
+        </div>
+        <div class="temp-stage-stats">
+          <span>RANGE <b>74.8 – 75.0</b></span>
+          <span>AVG <b>74.96</b></span>
+          <span>STDDEV <b>0.08</b></span>
+        </div>
+      </div>
+      <div class="temp-zones cols-5">
+        <div class="zone is-active">
+          <div class="zone-head">
+            <span class="zone-name">上模</span>
+            <span class="zone-id">DIE-T</span>
+          </div>
+          <div class="zone-readout">
+            <span class="zone-actual">75.0<span class="u">°C</span></span>
+            <div class="zone-readout-meta">
+              <span class="zone-setpoint"><span>SP</span>75.0</span>
+              <span class="zone-dev ok">Δ +0.0</span>
+            </div>
+          </div>
+          <div class="zone-bar"><div class="zone-bar-fill" style="left:50%;width:0%;"></div></div>
+        </div>
+        <div class="zone">
+          <div class="zone-head">
+            <span class="zone-name">上中模</span>
+            <span class="zone-id">DIE-TM</span>
+          </div>
+          <div class="zone-readout">
+            <span class="zone-actual">75.0<span class="u">°C</span></span>
+            <div class="zone-readout-meta">
+              <span class="zone-setpoint"><span>SP</span>75.0</span>
+              <span class="zone-dev ok">Δ +0.0</span>
+            </div>
+          </div>
+          <div class="zone-bar"><div class="zone-bar-fill" style="left:50%;width:0%;"></div></div>
+        </div>
+        <div class="zone">
+          <div class="zone-head">
+            <span class="zone-name">中模</span>
+            <span class="zone-id">DIE-M</span>
+          </div>
+          <div class="zone-readout">
+            <span class="zone-actual">75.0<span class="u">°C</span></span>
+            <div class="zone-readout-meta">
+              <span class="zone-setpoint"><span>SP</span>75.0</span>
+              <span class="zone-dev ok">Δ +0.0</span>
+            </div>
+          </div>
+          <div class="zone-bar"><div class="zone-bar-fill" style="left:50%;width:0%;"></div></div>
+        </div>
+        <div class="zone is-warn">
+          <div class="zone-head">
+            <span class="zone-name">下中模</span>
+            <span class="zone-id">DIE-BM</span>
+          </div>
+          <div class="zone-readout">
+            <span class="zone-actual">74.8<span class="u">°C</span></span>
+            <div class="zone-readout-meta">
+              <span class="zone-setpoint"><span>SP</span>75.0</span>
+              <span class="zone-dev warn">Δ −0.2</span>
+            </div>
+          </div>
+          <div class="zone-bar"><div class="zone-bar-fill warn" style="right:50%;left:auto;width:6%;"></div></div>
+        </div>
+        <div class="zone">
+          <div class="zone-head">
+            <span class="zone-name">下模</span>
+            <span class="zone-id">DIE-B</span>
+          </div>
+          <div class="zone-readout">
+            <span class="zone-actual">75.0<span class="u">°C</span></span>
+            <div class="zone-readout-meta">
+              <span class="zone-setpoint"><span>SP</span>75.0</span>
+              <span class="zone-dev ok">Δ +0.0</span>
+            </div>
+          </div>
+          <div class="zone-bar"><div class="zone-bar-fill" style="left:50%;width:0%;"></div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Section 2: Extruder switching -->
+    <div class="seg-tabs">
+      <div class="seg-tab active">EXT-150-T · 上挤出机 <span class="ct">3 ZONES</span></div>
+      <div class="seg-tab">EXT-150-M · 中挤出机 <span class="ct">3 ZONES</span></div>
+      <div class="seg-tab">EXT-150-B · 下挤出机 <span class="ct">3 ZONES</span></div>
+      <div class="seg-tab">EXT-90 · 90 挤出机 <span class="ct">3 ZONES</span></div>
+    </div>
+
+    <!-- Section 3: Top extruder zones -->
+    <div class="temp-stage">
+      <div class="temp-stage-head">
+        <div class="temp-stage-head-left">
+          <span class="temp-stage-id">EXT-150-T · 150 上挤出机</span>
+          <span class="temp-stage-title">螺杆 / 塑化 / 挤出 · 3 段</span>
+          <span class="temp-stage-sub">PROFILE 60 → 65 → 70 °C</span>
+        </div>
+        <div class="temp-stage-stats">
+          <span>RANGE <b>60.0 – 70.0</b></span>
+          <span>STDDEV <b>0.15</b></span>
+          <span>FLOW <b>5.1 RPM</b></span>
+        </div>
+      </div>
+      <div class="temp-zones cols-3">
+        <div class="zone is-active">
+          <div class="zone-head">
+            <span class="zone-name">螺杆段</span>
+            <span class="zone-id">SCREW · Z1</span>
+          </div>
+          <div class="zone-readout">
+            <span class="zone-actual">60.0<span class="u">°C</span></span>
+            <div class="zone-readout-meta">
+              <span class="zone-setpoint"><span>SP</span>60.0</span>
+              <span class="zone-dev ok">Δ +0.0</span>
+            </div>
+          </div>
+          <div class="zone-bar"><div class="zone-bar-fill" style="left:50%;width:0%;"></div></div>
+          <svg class="zone-trend" viewBox="0 0 60 18" preserveAspectRatio="none">
+            <polyline points="0,9 8,9 16,9 24,9 32,9 40,9 48,9 60,9" fill="none" stroke="#00E5FF" stroke-width="1"/>
+          </svg>
+        </div>
+        <div class="zone">
+          <div class="zone-head">
+            <span class="zone-name">塑化段</span>
+            <span class="zone-id">PLAST · Z2</span>
+          </div>
+          <div class="zone-readout">
+            <span class="zone-actual">64.2<span class="u">°C</span></span>
+            <div class="zone-readout-meta">
+              <span class="zone-setpoint"><span>SP</span>65.0</span>
+              <span class="zone-dev ok">Δ −0.8</span>
+            </div>
+          </div>
+          <div class="zone-bar"><div class="zone-bar-fill" style="right:50%;left:auto;width:6%;"></div></div>
+          <svg class="zone-trend" viewBox="0 0 60 18" preserveAspectRatio="none">
+            <polyline points="0,8 8,9 16,8 24,10 32,9 40,11 48,10 60,11" fill="none" stroke="#A0AEC0" stroke-width="1"/>
+          </svg>
+        </div>
+        <div class="zone">
+          <div class="zone-head">
+            <span class="zone-name">挤出段</span>
+            <span class="zone-id">EXTRUDE · Z3</span>
+          </div>
+          <div class="zone-readout">
+            <span class="zone-actual">69.0<span class="u">°C</span></span>
+            <div class="zone-readout-meta">
+              <span class="zone-setpoint"><span>SP</span>70.0</span>
+              <span class="zone-dev ok">Δ −1.0</span>
+            </div>
+          </div>
+          <div class="zone-bar"><div class="zone-bar-fill" style="right:50%;left:auto;width:8%;"></div></div>
+          <svg class="zone-trend" viewBox="0 0 60 18" preserveAspectRatio="none">
+            <polyline points="0,7 8,8 16,9 24,8 32,10 40,9 48,11 60,10" fill="none" stroke="#A0AEC0" stroke-width="1"/>
+          </svg>
+        </div>
+      </div>
+    </div>
+
+    <!-- Side-by-side: Mid extruder + Bottom extruder + 90 -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap: var(--sp-3);">
+      <div class="temp-stage" style="margin-bottom:0">
+        <div class="temp-stage-head">
+          <div class="temp-stage-head-left">
+            <span class="temp-stage-id">EXT-150-M · 150 中挤出机</span>
+            <span class="temp-stage-title">3 段</span>
+          </div>
+          <div class="temp-stage-stats">
+            <span>FLOW <b>5.1 RPM</b></span>
+          </div>
+        </div>
+        <div class="temp-zones cols-3">
+          <div class="zone">
+            <div class="zone-head">
+              <span class="zone-name">螺杆段</span>
+              <span class="zone-id">Z1</span>
+            </div>
+            <div class="zone-readout">
+              <span class="zone-actual">59.4<span class="u">°C</span></span>
+              <div class="zone-readout-meta">
+                <span class="zone-setpoint"><span>SP</span>60.0</span>
+                <span class="zone-dev ok">Δ −0.6</span>
+              </div>
+            </div>
+            <div class="zone-bar"><div class="zone-bar-fill" style="right:50%;left:auto;width:5%;"></div></div>
+          </div>
+          <div class="zone">
+            <div class="zone-head">
+              <span class="zone-name">塑化段</span>
+              <span class="zone-id">Z2</span>
+            </div>
+            <div class="zone-readout">
+              <span class="zone-actual">64.1<span class="u">°C</span></span>
+              <div class="zone-readout-meta">
+                <span class="zone-setpoint"><span>SP</span>65.0</span>
+                <span class="zone-dev ok">Δ −0.9</span>
+              </div>
+            </div>
+            <div class="zone-bar"><div class="zone-bar-fill" style="right:50%;left:auto;width:7%;"></div></div>
+          </div>
+          <div class="zone">
+            <div class="zone-head">
+              <span class="zone-name">挤出段</span>
+              <span class="zone-id">Z3</span>
+            </div>
+            <div class="zone-readout">
+              <span class="zone-actual">70.1<span class="u">°C</span></span>
+              <div class="zone-readout-meta">
+                <span class="zone-setpoint"><span>SP</span>70.0</span>
+                <span class="zone-dev ok">Δ +0.1</span>
+              </div>
+            </div>
+            <div class="zone-bar"><div class="zone-bar-fill" style="left:50%;width:1%;"></div></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="temp-stage" style="margin-bottom:0">
+        <div class="temp-stage-head">
+          <div class="temp-stage-head-left">
+            <span class="temp-stage-id">EXT-150-B · 150 下挤出机</span>
+            <span class="temp-stage-title">3 段</span>
+          </div>
+          <div class="temp-stage-stats" style="color:var(--status-warning)">
+            <span>FLOW <b>4.2 RPM</b></span>
+          </div>
+        </div>
+        <div class="temp-zones cols-3">
+          <div class="zone">
+            <div class="zone-head">
+              <span class="zone-name">螺杆段</span>
+              <span class="zone-id">Z1</span>
+            </div>
+            <div class="zone-readout">
+              <span class="zone-actual">65.5<span class="u">°C</span></span>
+              <div class="zone-readout-meta">
+                <span class="zone-setpoint"><span>SP</span>65.0</span>
+                <span class="zone-dev ok">Δ +0.5</span>
+              </div>
+            </div>
+            <div class="zone-bar"><div class="zone-bar-fill" style="left:50%;width:4%;"></div></div>
+          </div>
+          <div class="zone">
+            <div class="zone-head">
+              <span class="zone-name">塑化段</span>
+              <span class="zone-id">Z2</span>
+            </div>
+            <div class="zone-readout">
+              <span class="zone-actual">69.8<span class="u">°C</span></span>
+              <div class="zone-readout-meta">
+                <span class="zone-setpoint"><span>SP</span>70.0</span>
+                <span class="zone-dev ok">Δ −0.2</span>
+              </div>
+            </div>
+            <div class="zone-bar"><div class="zone-bar-fill" style="right:50%;left:auto;width:2%;"></div></div>
+          </div>
+          <div class="zone is-alarm">
+            <div class="zone-head">
+              <span class="zone-name">挤出段</span>
+              <span class="zone-id">Z3</span>
+            </div>
+            <div class="zone-readout">
+              <span class="zone-actual">73.8<span class="u">°C</span></span>
+              <div class="zone-readout-meta">
+                <span class="zone-setpoint"><span>SP</span>75.0</span>
+                <span class="zone-dev alarm">Δ −1.2</span>
+              </div>
+            </div>
+            <div class="zone-bar"><div class="zone-bar-fill alarm" style="right:50%;left:auto;width:9%;"></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 90 extruder section (full width) -->
+    <div class="temp-stage" style="margin-top:var(--sp-5)">
+      <div class="temp-stage-head">
+        <div class="temp-stage-head-left">
+          <span class="temp-stage-id">EXT-90 · 90 挤出机</span>
+          <span class="temp-stage-title">螺杆 / 塑化 / 挤出 · 3 段</span>
+          <span class="temp-stage-sub">PROFILE 75 → 80 → 85 °C</span>
+        </div>
+        <div class="temp-stage-stats">
+          <span>FLOW <b>7.6 RPM</b></span>
+          <span>RANGE <b>75.1 – 84.7</b></span>
+          <span>STDDEV <b>0.21</b></span>
+        </div>
+      </div>
+      <div class="temp-zones cols-3">
+        <div class="zone is-active">
+          <div class="zone-head">
+            <span class="zone-name">90 螺杆</span>
+            <span class="zone-id">SCREW · Z1</span>
+          </div>
+          <div class="zone-readout">
+            <span class="zone-actual">75.1<span class="u">°C</span></span>
+            <div class="zone-readout-meta">
+              <span class="zone-setpoint"><span>SP</span>75.0</span>
+              <span class="zone-dev ok">Δ +0.1</span>
+            </div>
+          </div>
+          <div class="zone-bar"><div class="zone-bar-fill" style="left:50%;width:1%;"></div></div>
+        </div>
+        <div class="zone">
+          <div class="zone-head">
+            <span class="zone-name">90 塑化段</span>
+            <span class="zone-id">PLAST · Z2</span>
+          </div>
+          <div class="zone-readout">
+            <span class="zone-actual">79.4<span class="u">°C</span></span>
+            <div class="zone-readout-meta">
+              <span class="zone-setpoint"><span>SP</span>80.0</span>
+              <span class="zone-dev ok">Δ −0.6</span>
+            </div>
+          </div>
+          <div class="zone-bar"><div class="zone-bar-fill" style="right:50%;left:auto;width:5%;"></div></div>
+        </div>
+        <div class="zone">
+          <div class="zone-head">
+            <span class="zone-name">90 挤出段</span>
+            <span class="zone-id">EXTRUDE · Z3</span>
+          </div>
+          <div class="zone-readout">
+            <span class="zone-actual">84.7<span class="u">°C</span></span>
+            <div class="zone-readout-meta">
+              <span class="zone-setpoint"><span>SP</span>85.0</span>
+              <span class="zone-dev ok">Δ −0.3</span>
+            </div>
+          </div>
+          <div class="zone-bar"><div class="zone-bar-fill" style="right:50%;left:auto;width:2%;"></div></div>
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- KPI BAR — temperature-focused -->
+  <aside class="kpibar">
+    <div class="kpibar-section">
+      <div class="kpibar-section-label">
+        <span>TEMP HEALTH · 温控健康</span>
+        <span>LIVE</span>
+      </div>
+      <div class="kpi is-accent">
+        <div class="kpi-label">温区合格率<span class="unit">%</span></div>
+        <div class="kpi-value">95.7<span class="unit-inline">%</span></div>
+        <svg class="kpi-spark" viewBox="0 0 280 28" preserveAspectRatio="none">
+          <polyline points="0,4 35,3 70,4 105,5 140,4 175,5 210,7 245,5 280,6" fill="none" stroke="#00E5FF" stroke-width="1.5"/>
+        </svg>
+        <div class="kpi-meta">
+          <span>合格 <b>22 / 23</b></span>
+          <span>1 告警</span>
+        </div>
+      </div>
+
+      <div class="kpi">
+        <div class="kpi-label">最大偏差<span class="unit">°C</span></div>
+        <div class="kpi-value" style="color:var(--status-warning)">−1.2</div>
+        <div class="kpi-meta">
+          <span>位置 <b>EXT-150-B Z3</b></span>
+          <span>持续 <b>03:24</b></span>
+        </div>
+      </div>
+
+      <div class="kpi">
+        <div class="kpi-label">平均偏差<span class="unit">°C</span></div>
+        <div class="kpi-value" style="font-size: 44px">−0.31</div>
+        <div class="kpi-meta">
+          <span>23 区平均</span>
+          <span style="color:var(--status-running)">●  IN-RANGE</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="kpibar-section">
+      <div class="kpibar-section-label">
+        <span>HEATING · 加热状态</span>
+      </div>
+      <div class="kpi">
+        <div class="kpi-label">加热功率<span class="unit">KW</span></div>
+        <div class="kpi-value" style="font-size: 44px">12.4</div>
+        <svg class="kpi-spark" viewBox="0 0 280 28" preserveAspectRatio="none">
+          <polyline points="0,12 35,8 70,14 105,10 140,16 175,12 210,8 245,14 280,10" fill="none" stroke="#A0AEC0" stroke-width="1"/>
+        </svg>
+        <div class="kpi-meta">
+          <span>加热中 <b>14</b></span>
+          <span>冷却中 <b>2</b></span>
+        </div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-label">冷却水温<span class="unit">°C</span></div>
+        <div class="kpi-value" style="font-size: 44px">23.0</div>
+        <div class="kpi-meta">
+          <span>入水 <b>23.0</b></span>
+          <span>回水 <b>26.4</b></span>
+        </div>
+      </div>
+    </div>
+
+    <div class="kpibar-section">
+      <div class="kpibar-section-label">
+        <span>QUICK ACTIONS</span>
+      </div>
+      <button class="btn btn-major" style="width:100%;justify-content:flex-start;padding:0 var(--sp-4)">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M12 4 V20 M4 12 H20" stroke="currentColor" stroke-width="1.5"/></svg>
+        新增温度配方
+      </button>
+      <button class="btn btn-major" style="width:100%;justify-content:flex-start;padding:0 var(--sp-4)">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M3 17 L9 11 L13 15 L21 7" stroke="currentColor" stroke-width="1.5"/></svg>
+        查看温度趋势
+      </button>
+      <button class="btn btn-major" style="width:100%;justify-content:flex-start;padding:0 var(--sp-4)">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M5 12 L10 17 L19 7" stroke="currentColor" stroke-width="1.5"/></svg>
+        全部温区归零校准
+      </button>
+    </div>
+  </aside>
+
+  <!-- ACTION BAR -->
+  <footer class="actionbar">
+    <div class="alarm-strip">
+      <div class="alarm-marker">
+        <span class="alarm-marker-dot"></span>
+        <span>ALARMS · 02</span>
+      </div>
+      <div class="alarm-strip-feed">
+        <span class="ts">14:31:42</span>
+        <span class="lvl lvl-h"></span>
+        <span>EXT-150-B 挤出段温度 73.8°C 低于设定 −1.2°C 持续 3 分钟</span>
+      </div>
+    </div>
+    <div class="action-buttons">
+      <button class="btn btn-major">取消修改</button>
+      <button class="btn btn-major btn-primary">保存温度配方</button>
+    </div>
+    <div style="padding: 0;">
+      <button class="btn-estop">E-STOP<br>急停</button>
+    </div>
+  </footer>
+
+</div>
+
+<script src="../fit.js?v=15"></script>
+<script>
+function tick() {
+  const d = new Date();
+  document.getElementById('clock').textContent =
+    [d.getHours(), d.getMinutes(), d.getSeconds()].map(n => String(n).padStart(2,'0')).join(':');
+}
+tick(); setInterval(tick, 1000);
+</script>
+<script src="../demo-mock.js"></script>
+<script src="../live.js"></script>
+</body>
+</html>

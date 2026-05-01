@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=1600">
+<title>工艺 / 6#胎侧 — PRINX HMI</title>
+<link rel="stylesheet" href="../style.css?v=15">
+<style>
+  .stub-canvas {
+    display: grid;
+    gap: var(--sp-3);
+    height: 100%;
+    grid-template-rows: auto 1fr;
+  }
+  .stub-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: var(--sp-2);
+    height: 100%;
+  }
+  .stub-tile {
+    background: var(--bg-panel);
+    border: 1px solid var(--line-subtle);
+    padding: var(--sp-3);
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-3);
+    position: relative;
+    overflow: hidden;
+  }
+  .stub-tile-eyebrow {
+    font-family: var(--ff-data);
+    font-size: 10px;
+    color: var(--fg-tertiary);
+    letter-spacing: var(--tracking-mega-wide);
+    text-transform: uppercase;
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+  }
+  .stub-tile-title {
+    font-family: var(--ff-cn);
+    font-size: 16px;
+    font-weight: 500;
+    color: var(--fg-primary);
+  }
+  .stub-tile-body {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--fg-tertiary);
+  }
+  
+</style>
+</head>
+<body>
+
+<div class="app">
+
+  <!-- TOPBAR -->
+  <header class="topbar">
+    <a href="../design.html" class="brand" style="text-decoration:none"><span class="brand-mark">PRINX</span> <span class="brand-name">HMI / <b>EXT-LINE</b></span></a>
+    <div class="row" style="margin-left: var(--sp-4);">
+      <span class="line-chip"><span class="line-chip-dot" style="background:var(--fg-tertiary);"></span>5# 胎面 <span style="opacity:.5">TREAD</span></span>
+      <span class="line-chip active"><span class="line-chip-dot"></span>6# 胎侧 <span style="opacity:.7">SIDEWALL</span></span>
+    </div>
+    <div class="topbar-spacer"></div>
+    <div class="topbar-meta">
+      <div class="topbar-meta-item">
+        <span class="topbar-meta-label">SHIFT</span>
+        <span class="topbar-meta-value">B 班</span>
+      </div>
+      <div class="topbar-meta-item">
+        <span class="topbar-meta-label">STATUS</span>
+        <span class="badge badge-running">运行</span>
+      </div>
+      <div class="clock" id="clock">14:32:08</div>
+      <div class="user-chip">
+        <div class="user-avatar">LZ</div>
+        <div class="user-chip-text"><b>李振华</b><span>LV2</span></div>
+      </div>
+    </div>
+  </header>
+
+  <!-- SIDENAV -->
+  <nav class="sidenav">
+    <a href="overview.html" class="nav-item">
+      <svg viewBox="0 0 24 24" fill="none"><path d="M3 12 L12 4 L21 12 M5 10 V20 H19 V10" stroke="currentColor" stroke-width="1.5"/></svg>
+      <span class="nav-item-label">主页</span>
+    </a>
+    <a href="recipe.html" class="nav-item">
+      <svg viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="7" height="7" stroke="currentColor" stroke-width="1.5"/><rect x="14" y="3" width="7" height="7" stroke="currentColor" stroke-width="1.5"/><rect x="3" y="14" width="7" height="7" stroke="currentColor" stroke-width="1.5"/><rect x="14" y="14" width="7" height="7" stroke="currentColor" stroke-width="1.5"/></svg>
+      <span class="nav-item-label">配方</span>
+    </a>
+    <a href="control.html" class="nav-item">
+      <svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.5"/><path d="M12 2 V5 M12 19 V22 M2 12 H5 M19 12 H22" stroke="currentColor" stroke-width="1.5"/></svg>
+      <span class="nav-item-label">闭环</span>
+    </a>
+    <a href="alarm.html" class="nav-item">
+      <svg viewBox="0 0 24 24" fill="none"><path d="M12 2 L2 22 H22 L12 2 Z" stroke="currentColor" stroke-width="1.5"/><path d="M12 9 V14 M12 17 V18" stroke="currentColor" stroke-width="1.5"/></svg>
+      <span class="nav-item-label">报警</span>
+    </a>
+    <a href="trend.html" class="nav-item">
+      <svg viewBox="0 0 24 24" fill="none"><path d="M3 17 L9 11 L13 15 L21 7" stroke="currentColor" stroke-width="1.5"/><path d="M15 7 H21 V13" stroke="currentColor" stroke-width="1.5"/></svg>
+      <span class="nav-item-label">趋势</span>
+    </a>
+    <a href="temperature.html" class="nav-item">
+      <svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.5"/><path d="M12 2 V5 M12 19 V22 M22 12 H19 M5 12 H2 M19.07 4.93 L16.95 7.05 M7.05 16.95 L4.93 19.07 M19.07 19.07 L16.95 16.95 M7.05 7.05 L4.93 4.93" stroke="currentColor" stroke-width="1.5"/></svg>
+      <span class="nav-item-label">温控</span>
+    </a>
+    <a href="process.html" class="nav-item active">
+      <svg viewBox="0 0 24 24" fill="none"><path d="M3 12 H8 L10 6 L14 18 L16 12 H21" stroke="currentColor" stroke-width="1.5"/></svg>
+      <span class="nav-item-label">工艺</span>
+    </a>
+    <a href="mes.html" class="nav-item">
+      <svg viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="18" height="18" stroke="currentColor" stroke-width="1.5"/><path d="M3 9 H21 M9 3 V21" stroke="currentColor" stroke-width="1.5"/></svg>
+      <span class="nav-item-label">MES</span>
+    </a>
+    <a href="maintenance.html" class="nav-item">
+      <svg viewBox="0 0 24 24" fill="none"><path d="M14 7 L17 4 L20 7 L17 10 Z" stroke="currentColor" stroke-width="1.5"/><path d="M14 7 L4 17 V20 H7 L17 10" stroke="currentColor" stroke-width="1.5"/></svg>
+      <span class="nav-item-label">维护</span>
+    </a>
+    <a href="report.html" class="nav-item">
+      <svg viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="18" height="18" stroke="currentColor" stroke-width="1.5"/><path d="M7 9 H17 M7 13 H17 M7 17 H13" stroke="currentColor" stroke-width="1.5"/></svg>
+      <span class="nav-item-label">报表</span>
+    </a>
+  </nav>
+
+  <!-- CANVAS -->
+  <main class="canvas">
+    <div class="canvas-header">
+      <div class="canvas-title">
+        <div class="canvas-title-eyebrow">P-07 · PROCESS · 工艺详情</div>
+        <div class="canvas-title-text">工艺段详情 · 复合挤出</div>
+      </div>
+      <div class="canvas-actions">
+        <button class="btn">切换工艺段</button><button class="btn btn-primary">下传配方</button>
+      </div>
+    </div>
+
+    <div class="stub-canvas">
+      
+      <div class="stub-grid" style="grid-template-columns:1fr 1fr">
+        <div class="stub-tile">
+          <div class="stub-tile-eyebrow"><span>EXT-150-T · 上挤出机</span><span>SECTION 1/4</span></div>
+          <div class="stub-tile-title">挤出机详情</div>
+          <div class="data-grid cols-3" style="margin-top:0">
+            <div class="data-cell"><div class="data-cell-label"><span class="data-cell-id">SPEED</span>转速</div><div class="data-cell-value">5.1<span class="u">RPM</span></div><div class="data-cell-sub"><span>SP 5.0</span><span style="color:var(--accent)">+0.1</span></div></div>
+            <div class="data-cell"><div class="data-cell-label"><span class="data-cell-id">PRESSURE</span>压力</div><div class="data-cell-value">18.6<span class="u">MPA</span></div><div class="data-cell-sub"><span>SP 18.5</span><span>正常</span></div></div>
+            <div class="data-cell"><div class="data-cell-label"><span class="data-cell-id">TEMP-MELT</span>胶温</div><div class="data-cell-value">70<span class="u">°C</span></div><div class="data-cell-sub"><span>SP 70</span><span>±0</span></div></div>
+            <div class="data-cell"><div class="data-cell-label"><span class="data-cell-id">CURRENT</span>主电机电流</div><div class="data-cell-value">128<span class="u">A</span></div><div class="data-cell-sub"><span>额 160 A</span><span>80%</span></div></div>
+            <div class="data-cell"><div class="data-cell-label"><span class="data-cell-id">TORQUE</span>主电机扭矩</div><div class="data-cell-value">82<span class="u">%</span></div><div class="data-cell-sub"><span>峰值 95</span><span>OK</span></div></div>
+            <div class="data-cell"><div class="data-cell-label"><span class="data-cell-id">FEED</span>喂料电机</div><div class="data-cell-value">运行</div><div class="data-cell-sub"><span>转速 36 RPM</span></div></div>
+          </div>
+        </div>
+        <div class="stub-tile">
+          <div class="stub-tile-eyebrow"><span>DIE-HEAD · 复合模头</span><span>SECTION 2/4</span></div>
+          <div class="stub-tile-title">模头工艺参数</div>
+          <div class="data-grid cols-3" style="margin-top:0">
+            <div class="data-cell"><div class="data-cell-label"><span class="data-cell-id">DIE-T</span>上模</div><div class="data-cell-value">75.0<span class="u">°C</span></div></div>
+            <div class="data-cell"><div class="data-cell-label"><span class="data-cell-id">DIE-TM</span>上中</div><div class="data-cell-value">75.0<span class="u">°C</span></div></div>
+            <div class="data-cell"><div class="data-cell-label"><span class="data-cell-id">DIE-M</span>中模</div><div class="data-cell-value">75.0<span class="u">°C</span></div></div>
+            <div class="data-cell is-warn"><div class="data-cell-label"><span class="data-cell-id">DIE-BM</span>下中</div><div class="data-cell-value">74.8<span class="u">°C</span></div><div class="data-cell-sub"><span>SP 75.0</span><span>−0.2</span></div></div>
+            <div class="data-cell"><div class="data-cell-label"><span class="data-cell-id">DIE-B</span>下模</div><div class="data-cell-value">75.0<span class="u">°C</span></div></div>
+            <div class="data-cell is-active"><div class="data-cell-label"><span class="data-cell-id">DIE-PRESS</span>合模压力</div><div class="data-cell-value">12.4<span class="u">MPA</span></div></div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </main>
+
+  <!-- KPI BAR -->
+  <aside class="kpibar">
+    <div class="kpibar-section">
+      <div class="kpibar-section-label">
+        <span>PROCESS HEALTH</span>
+        <span>LIVE</span>
+      </div>
+      
+      <div class="kpi">
+        <div class="kpi-label">实时节拍<span class="unit">PCS/H</span></div>
+        <div class="kpi-value" style="font-size:36px">240</div>
+        <div class="kpi-meta"><span>设计 250</span><span style="color:var(--accent)">96.0%</span></div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-label">复合宽度<span class="unit">MM</span></div>
+        <div class="kpi-value" style="font-size:36px">165.0</div>
+        <div class="kpi-meta"><span>SP 165.0</span><span style="color:var(--status-running)">●  ON-TARGET</span></div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-label">复合厚度<span class="unit">MM</span></div>
+        <div class="kpi-value" style="font-size:36px">3.42</div>
+        <div class="kpi-meta"><span>±0.04</span><span>Cpk <b>1.42</b></span></div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ACTION BAR -->
+  <footer class="actionbar">
+    <div class="alarm-strip">
+      <div class="alarm-marker">
+        <span class="alarm-marker-dot"></span>
+        <span>ALARMS · 02</span>
+      </div>
+      <div class="alarm-strip-feed">
+        <span class="ts">14:31:42</span>
+        <span class="lvl lvl-h"></span>
+        <span>下挤出机胶温偏高（73.4°C / 限值 72°C）</span>
+      </div>
+    </div>
+    <div class="action-buttons">
+      <button class="btn btn-major">工艺历史</button>
+      <button class="btn btn-major btn-primary">保存当前</button>
+    </div>
+    <div style="padding: 0;">
+      <button class="btn-estop">E-STOP<br>急停</button>
+    </div>
+  </footer>
+
+</div>
+
+<script src="../fit.js?v=15"></script>
+<script>
+function tick() {
+  const d = new Date();
+  document.getElementById('clock').textContent =
+    [d.getHours(), d.getMinutes(), d.getSeconds()].map(n => String(n).padStart(2,'0')).join(':');
+}
+tick(); setInterval(tick, 1000);
+</script>
+<script src="../demo-mock.js"></script>
+<script src="../live.js"></script>
+</body>
+</html>

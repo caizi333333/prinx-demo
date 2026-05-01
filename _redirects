@@ -1,0 +1,5 @@
+# PRINX HMI — Cloudflare Pages routing
+# 把根访问 / 重定向到 login.html，便于直接打开 sunyancai.top/prinx/
+
+/         /login.html         302
+/index    /index.html         302

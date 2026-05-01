@@ -1,0 +1,736 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=1920">
+<title>主画面 / 6#胎侧四复合挤出生产线 — PRINX HMI</title>
+<link rel="stylesheet" href="../style.css?v=15">
+<style>
+  /* Page-specific tweaks */
+  .canvas-overview {
+    display: grid;
+    grid-template-rows: auto 1fr auto;
+    gap: 1px;
+    height: 100%;
+  }
+  .signals-strip {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1px;
+    background: var(--line-subtle);
+    border: 1px solid var(--line-subtle);
+  }
+  .signal-cell {
+    background: var(--bg-panel);
+    padding: var(--sp-2) var(--sp-3);
+    display: flex; align-items: center; gap: var(--sp-2);
+  }
+  .signal-icon {
+    width: 36px; height: 36px;
+    background: var(--bg-elevated);
+    color: var(--accent);
+    display: grid; place-items: center;
+    flex-shrink: 0;
+    border: 1px solid var(--line-default);
+  }
+  .signal-body { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; }
+  .signal-label {
+    font-family: var(--ff-cn);
+    font-size: 13px;
+    color: var(--fg-tertiary);
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+  }
+  .signal-value {
+    font-family: var(--ff-data);
+    font-size: 31px;
+    font-weight: 400;
+    color: var(--fg-primary);
+    line-height: 1;
+    letter-spacing: var(--tracking-mega);
+    font-variant-numeric: tabular-nums;
+    display: flex; align-items: baseline; gap: 4px;
+  }
+  .signal-value .u {
+    font-size: 13px; color: var(--fg-tertiary);
+    letter-spacing: var(--tracking-wide); text-transform: uppercase;
+  }
+  .signal-meta {
+    font-family: var(--ff-data);
+    font-size: 12px;
+    color: var(--fg-tertiary);
+    letter-spacing: var(--tracking-wide);
+    margin-top: 2px;
+  }
+  .signal-meta b { color: var(--data-setpoint); font-weight: 400; }
+
+  .extruder-row {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1px;
+    background: var(--line-subtle);
+    border: 1px solid var(--line-subtle);
+  }
+  .extruder-cell {
+    background: var(--bg-panel);
+    padding: var(--sp-2);
+    display: flex; flex-direction: column; gap: var(--sp-3);
+    position: relative;
+  }
+  .extruder-cell.active::before {
+    content: '';
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    width: 2px; background: var(--accent);
+  }
+  .extruder-head {
+    display: flex; justify-content: space-between; align-items: baseline;
+  }
+  .extruder-id {
+    font-family: var(--ff-cn);
+    font-size: 17px; font-weight: 500;
+    color: var(--fg-primary);
+  }
+  .extruder-id b {
+    font-family: var(--ff-data);
+    color: var(--accent);
+    margin-right: 6px;
+    letter-spacing: var(--tracking-wide);
+  }
+  .extruder-stats {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: var(--sp-3);
+    padding-top: var(--sp-2);
+    border-top: 1px solid var(--line-subtle);
+  }
+  .extruder-stat-label {
+    font-family: var(--ff-data);
+    font-size: 11px;
+    color: var(--fg-tertiary);
+    text-transform: uppercase;
+    letter-spacing: var(--tracking-mega-wide);
+  }
+  .extruder-stat-value {
+    font-family: var(--ff-data);
+    font-size: 21px;
+    font-weight: 400;
+    color: var(--fg-primary);
+    line-height: 1.2;
+    letter-spacing: var(--tracking-tight);
+    font-variant-numeric: tabular-nums;
+  }
+  .extruder-stat-value .u {
+    font-size: 11px; color: var(--fg-tertiary);
+    letter-spacing: var(--tracking-wide);
+    text-transform: uppercase;
+  }
+
+  .floater-row {
+    display: grid;
+    grid-template-columns: 80px repeat(9, 1fr);
+    gap: 1px;
+    background: var(--line-subtle);
+    border: 1px solid var(--line-subtle);
+  }
+  .floater-cell {
+    background: var(--bg-panel);
+    padding: var(--sp-3) var(--sp-3);
+    text-align: center;
+  }
+  .floater-cell.label {
+    text-align: left;
+    display: flex; flex-direction: column; justify-content: center; gap: 2px;
+    padding: var(--sp-3) var(--sp-4);
+    background: var(--bg-canvas);
+  }
+  .floater-cell.label .l1 {
+    font-family: var(--ff-cn);
+    font-size: 13px;
+    color: var(--fg-secondary);
+    letter-spacing: 0.05em;
+  }
+  .floater-cell.label .l2 {
+    font-family: var(--ff-data);
+    font-size: 11px;
+    color: var(--fg-tertiary);
+    text-transform: uppercase;
+    letter-spacing: var(--tracking-mega-wide);
+  }
+  .floater-cell .pos {
+    font-family: var(--ff-data);
+    font-size: 11px;
+    color: var(--fg-tertiary);
+    text-transform: uppercase;
+    letter-spacing: var(--tracking-mega-wide);
+    margin-bottom: 4px;
+  }
+  .floater-cell .v {
+    font-family: var(--ff-data);
+    font-size: 20px;
+    font-variant-numeric: tabular-nums;
+    color: var(--fg-primary);
+  }
+  .floater-cell .pressure {
+    font-family: var(--ff-data);
+    font-size: 13px;
+    color: var(--accent);
+    margin-top: 2px;
+    font-variant-numeric: tabular-nums;
+  }
+</style>
+</head>
+<body>
+
+<div class="app">
+
+  <!-- TOPBAR -->
+  <header class="topbar">
+    <a href="../design.html" class="brand" style="text-decoration:none"><span class="brand-mark">PRINX</span>
+      <span class="brand-name">HMI / <b>EXT-LINE</b></span></a>
+
+    <div class="row" style="margin-left: var(--sp-4);">
+      <span class="line-chip">
+        <span class="line-chip-dot" style="background: var(--fg-tertiary);"></span>
+        <span>5# 胎面</span>
+        <span style="opacity:.5">TREAD</span>
+      </span>
+      <span class="line-chip active">
+        <span class="line-chip-dot"></span>
+        <span>6# 胎侧</span>
+        <span style="opacity:.7">SIDEWALL</span>
+      </span>
+    </div>
+
+    <div class="topbar-spacer"></div>
+
+    <div class="topbar-meta">
+      <div class="topbar-meta-item">
+        <span class="topbar-meta-label">SHIFT</span>
+        <span class="topbar-meta-value">B 班</span>
+      </div>
+      <div class="topbar-meta-item">
+        <span class="topbar-meta-label">STATUS</span>
+        <span class="badge badge-running">运行</span>
+      </div>
+      <div class="clock" id="clock">14:32:08</div>
+
+      <div class="user-chip">
+        <div class="user-avatar">LZ</div>
+        <div class="user-chip-text">
+          <b>李振华</b>
+          <span>LV2</span>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- SIDENAV -->
+  <nav class="sidenav">
+    <a href="overview.html" class="nav-item active">
+      <svg viewBox="0 0 24 24" fill="none"><path d="M3 12 L12 4 L21 12 M5 10 V20 H19 V10" stroke="currentColor" stroke-width="1.5"/></svg>
+      <span class="nav-item-label">主页</span>
+    </a>
+    <a href="recipe.html" class="nav-item">
+      <svg viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="7" height="7" stroke="currentColor" stroke-width="1.5"/><rect x="14" y="3" width="7" height="7" stroke="currentColor" stroke-width="1.5"/><rect x="3" y="14" width="7" height="7" stroke="currentColor" stroke-width="1.5"/><rect x="14" y="14" width="7" height="7" stroke="currentColor" stroke-width="1.5"/></svg>
+      <span class="nav-item-label">配方</span>
+    </a>
+    <a href="control.html" class="nav-item">
+      <svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.5"/><path d="M12 2 V5 M12 19 V22 M2 12 H5 M19 12 H22" stroke="currentColor" stroke-width="1.5"/></svg>
+      <span class="nav-item-label">闭环</span>
+    </a>
+    <a href="alarm.html" class="nav-item">
+      <svg viewBox="0 0 24 24" fill="none"><path d="M12 2 L2 22 H22 L12 2 Z" stroke="currentColor" stroke-width="1.5"/><path d="M12 9 V14 M12 17 V18" stroke="currentColor" stroke-width="1.5"/></svg>
+      <span class="nav-item-label">报警</span>
+    </a>
+    <a href="trend.html" class="nav-item">
+      <svg viewBox="0 0 24 24" fill="none"><path d="M3 17 L9 11 L13 15 L21 7" stroke="currentColor" stroke-width="1.5"/><path d="M15 7 H21 V13" stroke="currentColor" stroke-width="1.5"/></svg>
+      <span class="nav-item-label">趋势</span>
+    </a>
+    <a href="temperature.html" class="nav-item">
+      <svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.5"/><path d="M12 2 V5 M12 19 V22 M22 12 H19 M5 12 H2 M19.07 4.93 L16.95 7.05 M7.05 16.95 L4.93 19.07 M19.07 19.07 L16.95 16.95 M7.05 7.05 L4.93 4.93" stroke="currentColor" stroke-width="1.5"/></svg>
+      <span class="nav-item-label">温控</span>
+    </a>
+    <a href="process.html" class="nav-item">
+      <svg viewBox="0 0 24 24" fill="none"><path d="M3 12 H8 L10 6 L14 18 L16 12 H21" stroke="currentColor" stroke-width="1.5"/></svg>
+      <span class="nav-item-label">工艺</span>
+    </a>
+    <a href="mes.html" class="nav-item">
+      <svg viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="18" height="18" stroke="currentColor" stroke-width="1.5"/><path d="M3 9 H21 M9 3 V21" stroke="currentColor" stroke-width="1.5"/></svg>
+      <span class="nav-item-label">MES</span>
+    </a>
+    <a href="maintenance.html" class="nav-item">
+      <svg viewBox="0 0 24 24" fill="none"><path d="M14 7 L17 4 L20 7 L17 10 Z" stroke="currentColor" stroke-width="1.5"/><path d="M14 7 L4 17 V20 H7 L17 10" stroke="currentColor" stroke-width="1.5"/></svg>
+      <span class="nav-item-label">维护</span>
+    </a>
+    <a href="report.html" class="nav-item">
+      <svg viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="18" height="18" stroke="currentColor" stroke-width="1.5"/><path d="M7 9 H17 M7 13 H17 M7 17 H13" stroke="currentColor" stroke-width="1.5"/></svg>
+      <span class="nav-item-label">报表</span>
+    </a>
+  </nav>
+
+  <!-- CANVAS -->
+  <main class="canvas">
+    <div class="canvas-overview">
+
+      <!-- Header: title + work order summary -->
+      <div class="canvas-header">
+        <div class="canvas-title">
+          <div class="canvas-title-eyebrow">P-01 · OVERVIEW · 四复合挤出生产线</div>
+          <div class="canvas-title-text">主画面 / Triplex Extrusion Line · 6# 胎侧</div>
+        </div>
+        <div class="canvas-actions">
+          <div class="row gap-4" style="font-family:var(--ff-data);font-size: 14px;letter-spacing:var(--tracking-wide);">
+            <span class="text-mute">WORKORDER</span>
+            <span class="text-accent">PS1226-2604-B12</span>
+            <span class="divider-v"></span>
+            <span class="text-mute">RECIPE</span>
+            <span>S6/2 · v2.4</span>
+            <span class="divider-v"></span>
+            <span class="text-mute">DIE</span>
+            <span>S0275</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- PROCESS DIAGRAM (SVG) -->
+      <div class="process-frame">
+        <svg class="process-svg" viewBox="0 0 1100 360" preserveAspectRatio="xMidYMid meet">
+          <defs>
+            <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+              <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#1A2028" stroke-width="0.5"/>
+            </pattern>
+            <linearGradient id="material" x1="0" y1="0" x2="1" y2="0">
+              <stop offset="0%" stop-color="#00E5FF" stop-opacity="0.05"/>
+              <stop offset="50%" stop-color="#00E5FF" stop-opacity="0.4"/>
+              <stop offset="100%" stop-color="#00E5FF" stop-opacity="0.05"/>
+            </linearGradient>
+          </defs>
+          <rect width="1100" height="360" fill="url(#grid)"/>
+
+          <!-- 4 extruders on the left (vertically stacked) -->
+          <g transform="translate(40,40)">
+            <!-- 90mm extruder -->
+            <g transform="translate(0,0)">
+              <rect class="unit-frame" x="0" y="0" width="120" height="48"/>
+              <text class="unit-id" x="10" y="16">EXT-90</text>
+              <text class="unit-label" x="10" y="32">90 挤出机</text>
+              <circle class="spinner" cx="105" cy="24" r="8" fill="none" stroke="#00E5FF" stroke-width="1"/>
+              <line x1="105" y1="16" x2="105" y2="32" stroke="#00E5FF" stroke-width="1"/>
+              <text class="unit-value" x="48" y="42" text-anchor="end" data-signal="EXT-90.SPEED" data-precision="1">7.6</text>
+              <text class="unit-unit" x="52" y="42">RPM</text>
+            </g>
+            <!-- Top extruder -->
+            <g transform="translate(0,68)">
+              <rect class="unit-frame-active" x="0" y="0" width="120" height="48"/>
+              <text class="unit-id" x="10" y="16">EXT-T</text>
+              <text class="unit-label" x="10" y="32">上挤出机</text>
+              <circle class="spinner" cx="105" cy="24" r="8" fill="none" stroke="#00E5FF" stroke-width="1.5"/>
+              <line x1="105" y1="16" x2="105" y2="32" stroke="#00E5FF" stroke-width="1.5"/>
+              <text class="unit-value" x="48" y="42" text-anchor="end" data-signal="EXT-T.SPEED" data-precision="1">5.1</text>
+              <text class="unit-unit" x="52" y="42">RPM</text>
+            </g>
+            <!-- Middle extruder -->
+            <g transform="translate(0,136)">
+              <rect class="unit-frame-active" x="0" y="0" width="120" height="48"/>
+              <text class="unit-id" x="10" y="16">EXT-M</text>
+              <text class="unit-label" x="10" y="32">中挤出机</text>
+              <circle class="spinner" cx="105" cy="24" r="8" fill="none" stroke="#00E5FF" stroke-width="1.5"/>
+              <line x1="105" y1="16" x2="105" y2="32" stroke="#00E5FF" stroke-width="1.5"/>
+              <text class="unit-value" x="48" y="42" text-anchor="end" data-signal="EXT-M.SPEED" data-precision="1">5.1</text>
+              <text class="unit-unit" x="52" y="42">RPM</text>
+            </g>
+            <!-- Bottom extruder -->
+            <g transform="translate(0,204)">
+              <rect class="unit-frame-active" x="0" y="0" width="120" height="48"/>
+              <text class="unit-id" x="10" y="16">EXT-B</text>
+              <text class="unit-label" x="10" y="32">下挤出机</text>
+              <circle class="spinner" cx="105" cy="24" r="8" fill="none" stroke="#00E5FF" stroke-width="1.5"/>
+              <line x1="105" y1="16" x2="105" y2="32" stroke="#00E5FF" stroke-width="1.5"/>
+              <text class="unit-value" x="48" y="42" text-anchor="end" data-signal="EXT-B.SPEED" data-precision="1">4.2</text>
+              <text class="unit-unit" x="52" y="42">RPM</text>
+            </g>
+          </g>
+
+          <!-- 4 flow lines converging to die head -->
+          <g stroke="#00E5FF" stroke-width="1.5" fill="none">
+            <path class="line-flow" d="M160 64 Q 220 64 240 140"/>
+            <path class="line-flow" d="M160 132 Q 220 132 240 145"/>
+            <path class="line-flow" d="M160 200 Q 220 200 240 155"/>
+            <path class="line-flow" d="M160 268 Q 220 268 240 160"/>
+          </g>
+
+          <!-- Die head (5 zones: top, top-mid, mid, bot-mid, bot) -->
+          <g transform="translate(240,90)">
+            <rect class="unit-frame-active" x="0" y="0" width="100" height="120" rx="2"/>
+            <text class="unit-id" x="10" y="14">DIE-HEAD</text>
+            <text class="unit-label" x="10" y="28">复合模头</text>
+            <!-- 5 temp zones -->
+            <g font-family="Azeret Mono" font-size="9" fill="#A0AEC0">
+              <rect x="10" y="36" width="80" height="14" fill="#1A2028" stroke="#2A3441"/>
+              <text x="14" y="46">上模</text>
+              <text x="86" y="46" text-anchor="end" fill="#F7FAFC" data-signal="TT-DIE-T.PV" data-precision="1" data-suffix="°">75.0°</text>
+              <rect x="10" y="52" width="80" height="14" fill="#1A2028" stroke="#2A3441"/>
+              <text x="14" y="62">上中</text>
+              <text x="86" y="62" text-anchor="end" fill="#F7FAFC" data-signal="TT-DIE-TM.PV" data-precision="1" data-suffix="°">75.0°</text>
+              <rect x="10" y="68" width="80" height="14" fill="#1A2028" stroke="#2A3441"/>
+              <text x="14" y="78">中模</text>
+              <text x="86" y="78" text-anchor="end" fill="#F7FAFC" data-signal="TT-DIE-M.PV" data-precision="1" data-suffix="°">75.0°</text>
+              <rect x="10" y="84" width="80" height="14" fill="#1A2028" stroke="#2A3441"/>
+              <text x="14" y="94">下中</text>
+              <text x="86" y="94" text-anchor="end" fill="#FFB300" data-signal="TT-DIE-BM.PV" data-precision="1" data-suffix="°">74.8°</text>
+              <rect x="10" y="100" width="80" height="14" fill="#1A2028" stroke="#2A3441"/>
+              <text x="14" y="110">下模</text>
+              <text x="86" y="110" text-anchor="end" fill="#F7FAFC" data-signal="TT-DIE-B.PV" data-precision="1" data-suffix="°">75.0°</text>
+            </g>
+          </g>
+
+          <!-- Material flow line (animated dashed) -->
+          <line class="line-flow" x1="340" y1="150" x2="430" y2="150"/>
+
+          <!-- Cooling drum -->
+          <g transform="translate(430,108)">
+            <rect class="unit-frame-active" x="0" y="0" width="80" height="84"/>
+            <text class="unit-id" x="8" y="14">COOL</text>
+            <text class="unit-label" x="8" y="28">冷却</text>
+            <circle cx="40" cy="56" r="20" fill="none" stroke="#00E5FF" stroke-width="1.5"/>
+            <line x1="40" y1="40" x2="40" y2="72" stroke="#00E5FF" stroke-width="0.8" opacity="0.5"/>
+            <line x1="24" y1="56" x2="56" y2="56" stroke="#00E5FF" stroke-width="0.8" opacity="0.5"/>
+          </g>
+
+          <line class="line-flow" x1="510" y1="150" x2="560" y2="150"/>
+
+          <!-- Width measurement -->
+          <g transform="translate(560,108)">
+            <rect class="unit-frame" x="0" y="0" width="76" height="84"/>
+            <text class="unit-id" x="8" y="14">MEAS-W</text>
+            <text class="unit-label" x="8" y="28">后测宽</text>
+            <text class="unit-value" x="38" y="58" text-anchor="middle" data-signal="WIDTH-REAR.PV" data-precision="1">165.0</text>
+            <text class="unit-unit" x="38" y="74" text-anchor="middle">MM</text>
+            <line x1="8" y1="44" x2="68" y2="44" stroke="#4FC3F7" stroke-width="0.6" stroke-dasharray="2 2"/>
+          </g>
+
+          <line class="line-flow" x1="636" y1="150" x2="690" y2="150"/>
+
+          <!-- 9 Floater rolls (compact) -->
+          <g transform="translate(690,80)">
+            <rect class="unit-frame" x="0" y="0" width="280" height="140"/>
+            <text class="unit-id" x="8" y="14">FLOATER × 9</text>
+            <text class="unit-label" x="8" y="28">浮动辊系统</text>
+            <!-- 9 rollers -->
+            <g>
+              <!-- top rail -->
+              <line x1="14" y1="58" x2="266" y2="58" stroke="#3E4A5C" stroke-width="0.8"/>
+              <line x1="14" y1="98" x2="266" y2="98" stroke="#3E4A5C" stroke-width="0.8"/>
+              <!-- material zigzag -->
+              <path d="M14 78
+                       L42 58 L70 98 L98 58 L126 98 L154 58 L182 98 L210 58 L238 98 L266 78"
+                fill="none" stroke="#00E5FF" stroke-width="1.2" opacity="0.85"/>
+              <!-- 9 roller dots -->
+              <g fill="#00E5FF">
+                <circle cx="42" cy="58" r="3"/>
+                <circle cx="98" cy="58" r="3"/>
+                <circle cx="154" cy="58" r="3"/>
+                <circle cx="210" cy="58" r="3"/>
+                <circle cx="70" cy="98" r="3"/>
+                <circle cx="126" cy="98" r="3"/>
+                <circle cx="182" cy="98" r="3"/>
+                <circle cx="238" cy="98" r="3"/>
+                <circle cx="266" cy="78" r="3"/>
+              </g>
+              <!-- Numbers -->
+              <g font-family="Azeret Mono" font-size="8" fill="#A0AEC0" text-anchor="middle">
+                <text x="42" y="50">1</text>
+                <text x="98" y="50">3</text>
+                <text x="154" y="50">5</text>
+                <text x="210" y="50">7</text>
+                <text x="70" y="116">2</text>
+                <text x="126" y="116">4</text>
+                <text x="182" y="116">6</text>
+                <text x="238" y="116">8</text>
+                <text x="266" y="68">9</text>
+              </g>
+            </g>
+            <text x="8" y="134" font-family="Azeret Mono" font-size="9" fill="#718096" letter-spacing="0.18em">POS 50.0 MM · AVG 0.84 MPA</text>
+          </g>
+
+          <line class="line-flow" x1="970" y1="150" x2="1010" y2="150"/>
+
+          <!-- Take-up reel -->
+          <g transform="translate(1010,90)">
+            <rect class="unit-frame-active" x="0" y="0" width="60" height="120"/>
+            <text class="unit-id" x="8" y="14">REEL</text>
+            <text class="unit-label" x="8" y="28">卷取</text>
+            <circle class="spinner" cx="30" cy="64" r="22" fill="none" stroke="#00E5FF" stroke-width="1.5" stroke-dasharray="2 4"/>
+            <circle cx="30" cy="64" r="6" fill="#00E5FF"/>
+            <text class="unit-value" x="30" y="106" text-anchor="middle" font-size="13" data-signal="REEL.LENGTH" data-precision="1" data-workorder-progress>75.0</text>
+            <text class="unit-unit" x="30" y="116" text-anchor="middle">METER</text>
+          </g>
+
+          <!-- Bottom annotation: weighing scales -->
+          <g transform="translate(40,300)">
+            <line x1="0" y1="0" x2="1020" y2="0" stroke="#1C232E" stroke-width="0.5"/>
+            <g font-family="Azeret Mono" font-size="10" fill="#718096" letter-spacing="0.1em">
+              <text x="0" y="20">前秤  </text>
+              <text x="170" y="20" fill="#F7FAFC" data-signal="SCL-FRONT.PV" data-precision="3" data-suffix=" KG/M">0.750 KG/M</text>
+              <text x="270" y="20">后秤  </text>
+              <text x="440" y="20" fill="#F7FAFC" data-signal="SCL-REAR.PV" data-precision="3" data-suffix=" KG/M">0.748 KG/M</text>
+              <text x="540" y="20">接取  </text>
+              <text x="730" y="20" fill="#F7FAFC" data-signal="TAKEUP.SPEED" data-precision="1" data-suffix=" M/MIN">5.0 M/MIN</text>
+              <text x="830" y="20">收缩  </text>
+              <text x="950" y="20" fill="#F7FAFC" data-signal="SHRINK.PV" data-precision="1" data-suffix=" %">4.0 %</text>
+            </g>
+          </g>
+
+        </svg>
+      </div>
+
+      <!-- 4-extruder detail strip -->
+      <div class="extruder-row">
+        <div class="extruder-cell">
+          <div class="extruder-head">
+            <span class="extruder-id"><b>EXT-90</b>90 挤出机</span>
+            <span class="badge badge-running">运行</span>
+          </div>
+          <div class="extruder-stats">
+            <div>
+              <div class="extruder-stat-label">SPEED</div>
+              <div class="extruder-stat-value"><span data-signal="EXT-90.SPEED" data-precision="1">7.6</span><span class="u">RPM</span></div>
+            </div>
+            <div>
+              <div class="extruder-stat-label">压力</div>
+              <div class="extruder-stat-value"><span data-signal="EXT-90.PRESSURE" data-precision="1">20.1</span><span class="u">MPA</span></div>
+            </div>
+            <div>
+              <div class="extruder-stat-label">胶温</div>
+              <div class="extruder-stat-value"><span data-signal="EXT-90.MELT_TEMP" data-precision="0">85</span><span class="u">°C</span></div>
+            </div>
+          </div>
+        </div>
+        <div class="extruder-cell active">
+          <div class="extruder-head">
+            <span class="extruder-id"><b>EXT-T</b>上挤出机</span>
+            <span class="badge badge-running">运行</span>
+          </div>
+          <div class="extruder-stats">
+            <div>
+              <div class="extruder-stat-label">SPEED</div>
+              <div class="extruder-stat-value"><span data-signal="EXT-T.SPEED" data-precision="1">5.1</span><span class="u">RPM</span></div>
+            </div>
+            <div>
+              <div class="extruder-stat-label">压力</div>
+              <div class="extruder-stat-value"><span data-signal="EXT-T.PRESSURE" data-precision="1">18.6</span><span class="u">MPA</span></div>
+            </div>
+            <div>
+              <div class="extruder-stat-label">胶温</div>
+              <div class="extruder-stat-value"><span data-signal="EXT-T.MELT_TEMP" data-precision="0">70</span><span class="u">°C</span></div>
+            </div>
+          </div>
+        </div>
+        <div class="extruder-cell active">
+          <div class="extruder-head">
+            <span class="extruder-id"><b>EXT-M</b>中挤出机</span>
+            <span class="badge badge-running">运行</span>
+          </div>
+          <div class="extruder-stats">
+            <div>
+              <div class="extruder-stat-label">SPEED</div>
+              <div class="extruder-stat-value"><span data-signal="EXT-M.SPEED" data-precision="1">5.1</span><span class="u">RPM</span></div>
+            </div>
+            <div>
+              <div class="extruder-stat-label">压力</div>
+              <div class="extruder-stat-value"><span data-signal="EXT-M.PRESSURE" data-precision="1">18.2</span><span class="u">MPA</span></div>
+            </div>
+            <div>
+              <div class="extruder-stat-label">胶温</div>
+              <div class="extruder-stat-value"><span data-signal="EXT-M.MELT_TEMP" data-precision="0">70</span><span class="u">°C</span></div>
+            </div>
+          </div>
+        </div>
+        <div class="extruder-cell active">
+          <div class="extruder-head">
+            <span class="extruder-id"><b>EXT-B</b>下挤出机</span>
+            <span class="badge badge-warning">警告</span>
+          </div>
+          <div class="extruder-stats">
+            <div>
+              <div class="extruder-stat-label">SPEED</div>
+              <div class="extruder-stat-value"><span data-signal="EXT-B.SPEED" data-precision="1">4.2</span><span class="u">RPM</span></div>
+            </div>
+            <div>
+              <div class="extruder-stat-label">压力</div>
+              <div class="extruder-stat-value"><span data-signal="EXT-B.PRESSURE" data-precision="1">17.4</span><span class="u">MPA</span></div>
+            </div>
+            <div>
+              <div class="extruder-stat-label">胶温</div>
+              <div class="extruder-stat-value"><span data-signal="EXT-B.MELT_TEMP" data-precision="0">73</span><span class="u">°C</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 9 Floater roll detail row -->
+      <div class="floater-row">
+        <div class="floater-cell label">
+          <span class="l1">浮动辊</span>
+          <span class="l2">FLOATER · POS / PRESSURE</span>
+        </div>
+        <div class="floater-cell"><div class="pos">01</div><div class="v">50.0</div><div class="pressure">0.30</div></div>
+        <div class="floater-cell"><div class="pos">02</div><div class="v">50.0</div><div class="pressure">0.10</div></div>
+        <div class="floater-cell"><div class="pos">03</div><div class="v">50.0</div><div class="pressure">1.00</div></div>
+        <div class="floater-cell"><div class="pos">04</div><div class="v">50.0</div><div class="pressure">0.30</div></div>
+        <div class="floater-cell"><div class="pos">05</div><div class="v">50.0</div><div class="pressure">1.00</div></div>
+        <div class="floater-cell"><div class="pos">06</div><div class="v">50.0</div><div class="pressure">2.00</div></div>
+        <div class="floater-cell"><div class="pos">07</div><div class="v">50.0</div><div class="pressure">1.20</div></div>
+        <div class="floater-cell"><div class="pos">08</div><div class="v">50.0</div><div class="pressure">0.80</div></div>
+        <div class="floater-cell"><div class="pos">09</div><div class="v">50.0</div><div class="pressure">0.90</div></div>
+      </div>
+
+    </div>
+  </main>
+
+  <!-- KPI BAR -->
+  <aside class="kpibar">
+    <div class="kpibar-section">
+      <div class="kpibar-section-label">
+        <span>KEY METRICS · 关键指标</span>
+        <span>LIVE</span>
+      </div>
+
+      <div class="kpi is-accent">
+        <div class="kpi-label">
+          卷取长度
+          <span class="unit">M</span>
+        </div>
+        <div class="kpi-value">75.0</div>
+        <svg class="kpi-spark" viewBox="0 0 280 28" preserveAspectRatio="none">
+          <polyline points="0,22 20,20 40,22 60,18 80,16 100,14 120,12 140,11 160,9 180,8 200,6 220,5 240,4 260,3 280,2" fill="none" stroke="#00E5FF" stroke-width="1.5"/>
+          <polyline points="0,22 20,20 40,22 60,18 80,16 100,14 120,12 140,11 160,9 180,8 200,6 220,5 240,4 260,3 280,2 280,28 0,28" fill="url(#sparkfill)" opacity="0.15"/>
+          <defs>
+            <linearGradient id="sparkfill" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="#00E5FF"/>
+              <stop offset="100%" stop-color="#00E5FF" stop-opacity="0"/>
+            </linearGradient>
+          </defs>
+        </svg>
+        <div class="kpi-meta">
+          <span>计划 <b>1000 M</b></span>
+          <span>进度 <b>7.5%</b></span>
+        </div>
+      </div>
+
+      <div class="kpi">
+        <div class="kpi-label">
+          接取速度
+          <span class="unit">M/MIN</span>
+        </div>
+        <div class="kpi-value">5.0<span class="unit-inline">/min</span></div>
+        <svg class="kpi-spark" viewBox="0 0 280 28" preserveAspectRatio="none">
+          <polyline points="0,16 20,14 40,15 60,13 80,12 100,14 120,13 140,12 160,11 180,12 200,13 220,12 240,11 260,12 280,13" fill="none" stroke="#A0AEC0" stroke-width="1.2"/>
+        </svg>
+        <div class="kpi-meta">
+          <span>设定 <b>5.0</b></span>
+          <span>偏差 <b>±0.0%</b></span>
+        </div>
+      </div>
+
+      <div class="kpi">
+        <div class="kpi-label">
+          收缩率
+          <span class="unit">%</span>
+        </div>
+        <div class="kpi-value">4.0</div>
+        <svg class="kpi-spark" viewBox="0 0 280 28" preserveAspectRatio="none">
+          <polyline points="0,18 20,16 40,18 60,17 80,16 100,18 120,17 140,15 160,16 180,17 200,16 220,15 240,16 260,17 280,16" fill="none" stroke="#A0AEC0" stroke-width="1.2"/>
+        </svg>
+        <div class="kpi-meta">
+          <span>限值 <b>3.5–4.5</b></span>
+          <span style="color:var(--status-running)">●  IN-RANGE</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="kpibar-section">
+      <div class="kpibar-section-label">
+        <span>WEIGHING / 称重监测</span>
+      </div>
+      <div class="kpi">
+        <div class="kpi-label">前连续秤<span class="unit">KG/M</span></div>
+        <div class="kpi-value" style="font-size: 38px;">0.750</div>
+        <div class="kpi-meta">
+          <span>标准 <b>0.750</b></span>
+          <span style="color:var(--status-running)">●  ON-TARGET</span>
+        </div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-label">后连续秤<span class="unit">KG/M</span></div>
+        <div class="kpi-value" style="font-size: 38px;">0.748</div>
+        <div class="kpi-meta">
+          <span>标准 <b>0.750</b></span>
+          <span style="color:var(--status-warning)">●  −0.27%</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="kpibar-section">
+      <div class="kpibar-section-label">
+        <span>SHIFT OEE · 班次综合</span>
+      </div>
+      <div class="kpi is-accent">
+        <div class="kpi-label">OEE</div>
+        <div class="kpi-value">86.4<span class="unit-inline">%</span></div>
+        <svg class="kpi-spark" viewBox="0 0 280 28" preserveAspectRatio="none">
+          <polyline points="0,8 35,10 70,9 105,7 140,8 175,6 210,7 245,8 280,9" fill="none" stroke="#00E5FF" stroke-width="1.5"/>
+        </svg>
+        <div class="kpi-meta">
+          <span>A <b>92.1</b></span>
+          <span>P <b>94.8</b></span>
+          <span>Q <b>98.9</b></span>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ACTION BAR -->
+  <footer class="actionbar">
+    <div class="alarm-strip">
+      <div class="alarm-marker">
+        <span class="alarm-marker-dot"></span>
+        <span>ALARMS · 02</span>
+      </div>
+      <div class="alarm-strip-feed">
+        <span class="ts">14:31:42</span>
+        <span class="lvl lvl-h"></span>
+        <span>下挤出机胶温偏高（73.4°C / 限值 72°C）</span>
+        <span style="margin: 0 var(--sp-3); color: var(--fg-disabled)">▮</span>
+        <span class="ts">14:28:11</span>
+        <span class="lvl lvl-m"></span>
+        <span>后连续秤称重偏差 −0.27% 持续 4 分钟</span>
+      </div>
+    </div>
+
+    <div class="action-buttons">
+      <button class="btn btn-major">暂停</button>
+      <button class="btn btn-major btn-primary">连续生产</button>
+    </div>
+
+    <div style="padding: 0;">
+      <button class="btn-estop">E-STOP<br>急停</button>
+    </div>
+  </footer>
+
+</div>
+
+<script src="../fit.js?v=15"></script>
+<script>
+function tick() {
+  const d = new Date();
+  document.getElementById('clock').textContent =
+    [d.getHours(), d.getMinutes(), d.getSeconds()].map(n => String(n).padStart(2,'0')).join(':');
+}
+tick(); setInterval(tick, 1000);
+</script>
+<script src="../demo-mock.js"></script>
+<script src="../live.js"></script>
+</body>
+</html>

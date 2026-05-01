@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=1600">
+<title>趋势 / 6#胎侧 — PRINX HMI</title>
+<link rel="stylesheet" href="../style.css?v=15">
+<style>
+  .stub-canvas {
+    display: grid;
+    gap: var(--sp-3);
+    height: 100%;
+    grid-template-rows: auto 1fr;
+  }
+  .stub-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: var(--sp-2);
+    height: 100%;
+  }
+  .stub-tile {
+    background: var(--bg-panel);
+    border: 1px solid var(--line-subtle);
+    padding: var(--sp-3);
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-3);
+    position: relative;
+    overflow: hidden;
+  }
+  .stub-tile-eyebrow {
+    font-family: var(--ff-data);
+    font-size: 10px;
+    color: var(--fg-tertiary);
+    letter-spacing: var(--tracking-mega-wide);
+    text-transform: uppercase;
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+  }
+  .stub-tile-title {
+    font-family: var(--ff-cn);
+    font-size: 16px;
+    font-weight: 500;
+    color: var(--fg-primary);
+  }
+  .stub-tile-body {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--fg-tertiary);
+  }
+  
+</style>
+</head>
+<body>
+
+<div class="app">
+
+  <!-- TOPBAR -->
+  <header class="topbar">
+    <a href="../design.html" class="brand" style="text-decoration:none"><span class="brand-mark">PRINX</span> <span class="brand-name">HMI / <b>EXT-LINE</b></span></a>
+    <div class="row" style="margin-left: var(--sp-4);">
+      <span class="line-chip"><span class="line-chip-dot" style="background:var(--fg-tertiary);"></span>5# 胎面 <span style="opacity:.5">TREAD</span></span>
+      <span class="line-chip active"><span class="line-chip-dot"></span>6# 胎侧 <span style="opacity:.7">SIDEWALL</span></span>
+    </div>
+    <div class="topbar-spacer"></div>
+    <div class="topbar-meta">
+      <div class="topbar-meta-item">
+        <span class="topbar-meta-label">SHIFT</span>
+        <span class="topbar-meta-value">B 班</span>
+      </div>
+      <div class="topbar-meta-item">
+        <span class="topbar-meta-label">STATUS</span>
+        <span class="badge badge-running">运行</span>
+      </div>
+      <div class="clock" id="clock">14:32:08</div>
+      <div class="user-chip">
+        <div class="user-avatar">LZ</div>
+        <div class="user-chip-text"><b>李振华</b><span>LV2</span></div>
+      </div>
+    </div>
+  </header>
+
+  <!-- SIDENAV -->
+  <nav class="sidenav">
+    <a href="overview.html" class="nav-item">
+      <svg viewBox="0 0 24 24" fill="none"><path d="M3 12 L12 4 L21 12 M5 10 V20 H19 V10" stroke="currentColor" stroke-width="1.5"/></svg>
+      <span class="nav-item-label">主页</span>
+    </a>
+    <a href="recipe.html" class="nav-item">
+      <svg viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="7" height="7" stroke="currentColor" stroke-width="1.5"/><rect x="14" y="3" width="7" height="7" stroke="currentColor" stroke-width="1.5"/><rect x="3" y="14" width="7" height="7" stroke="currentColor" stroke-width="1.5"/><rect x="14" y="14" width="7" height="7" stroke="currentColor" stroke-width="1.5"/></svg>
+      <span class="nav-item-label">配方</span>
+    </a>
+    <a href="control.html" class="nav-item">
+      <svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.5"/><path d="M12 2 V5 M12 19 V22 M2 12 H5 M19 12 H22" stroke="currentColor" stroke-width="1.5"/></svg>
+      <span class="nav-item-label">闭环</span>
+    </a>
+    <a href="alarm.html" class="nav-item">
+      <svg viewBox="0 0 24 24" fill="none"><path d="M12 2 L2 22 H22 L12 2 Z" stroke="currentColor" stroke-width="1.5"/><path d="M12 9 V14 M12 17 V18" stroke="currentColor" stroke-width="1.5"/></svg>
+      <span class="nav-item-label">报警</span>
+    </a>
+    <a href="trend.html" class="nav-item active">
+      <svg viewBox="0 0 24 24" fill="none"><path d="M3 17 L9 11 L13 15 L21 7" stroke="currentColor" stroke-width="1.5"/><path d="M15 7 H21 V13" stroke="currentColor" stroke-width="1.5"/></svg>
+      <span class="nav-item-label">趋势</span>
+    </a>
+    <a href="temperature.html" class="nav-item">
+      <svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.5"/><path d="M12 2 V5 M12 19 V22 M22 12 H19 M5 12 H2 M19.07 4.93 L16.95 7.05 M7.05 16.95 L4.93 19.07 M19.07 19.07 L16.95 16.95 M7.05 7.05 L4.93 4.93" stroke="currentColor" stroke-width="1.5"/></svg>
+      <span class="nav-item-label">温控</span>
+    </a>
+    <a href="process.html" class="nav-item">
+      <svg viewBox="0 0 24 24" fill="none"><path d="M3 12 H8 L10 6 L14 18 L16 12 H21" stroke="currentColor" stroke-width="1.5"/></svg>
+      <span class="nav-item-label">工艺</span>
+    </a>
+    <a href="mes.html" class="nav-item">
+      <svg viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="18" height="18" stroke="currentColor" stroke-width="1.5"/><path d="M3 9 H21 M9 3 V21" stroke="currentColor" stroke-width="1.5"/></svg>
+      <span class="nav-item-label">MES</span>
+    </a>
+    <a href="maintenance.html" class="nav-item">
+      <svg viewBox="0 0 24 24" fill="none"><path d="M14 7 L17 4 L20 7 L17 10 Z" stroke="currentColor" stroke-width="1.5"/><path d="M14 7 L4 17 V20 H7 L17 10" stroke="currentColor" stroke-width="1.5"/></svg>
+      <span class="nav-item-label">维护</span>
+    </a>
+    <a href="report.html" class="nav-item">
+      <svg viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="18" height="18" stroke="currentColor" stroke-width="1.5"/><path d="M7 9 H17 M7 13 H17 M7 17 H13" stroke="currentColor" stroke-width="1.5"/></svg>
+      <span class="nav-item-label">报表</span>
+    </a>
+  </nav>
+
+  <!-- CANVAS -->
+  <main class="canvas">
+    <div class="canvas-header">
+      <div class="canvas-title">
+        <div class="canvas-title-eyebrow">P-06 · TREND · 实时趋势</div>
+        <div class="canvas-title-text">实时趋势监控 · 多通道</div>
+      </div>
+      <div class="canvas-actions">
+        <button class="btn">订阅通道</button><button class="btn btn-primary">导出数据</button>
+      </div>
+    </div>
+
+    <div class="stub-canvas">
+      
+      <div class="row gap-4" style="margin-bottom:var(--sp-3)">
+        <span class="chip active">温度 · 23 ch</span>
+        <span class="chip">速度 · 4 ch</span>
+        <span class="chip">压力 · 8 ch</span>
+        <span class="chip">称重 · 2 ch</span>
+        <span class="chip">浮辊 · 9 ch</span>
+        <span class="text-mute" style="margin-left:auto">时间窗 · <b style="color:var(--fg-primary)">最近 30 分钟</b></span>
+      </div>
+      <div class="stub-grid">
+        <div class="stub-tile">
+          <div class="stub-tile-eyebrow"><span>TT-DIE-T</span><span>°C</span></div>
+          <div class="stub-tile-title">模头温度（5 区）</div>
+          <svg viewBox="0 0 800 200" preserveAspectRatio="none" style="width:100%;height:160px">
+            <g stroke="#1C232E" stroke-width="0.5"><line x1="0" y1="40" x2="800" y2="40"/><line x1="0" y1="80" x2="800" y2="80"/><line x1="0" y1="120" x2="800" y2="120"/><line x1="0" y1="160" x2="800" y2="160"/></g>
+            <polyline points="0,80 50,82 100,79 150,81 200,80 250,80 300,82 350,83 400,79 450,80 500,79 550,82 600,80 650,80 700,80 750,79 800,80" fill="none" stroke="#00E5FF" stroke-width="1.5"/>
+            <polyline points="0,82 100,80 200,81 300,80 400,82 500,81 600,80 700,82 800,81" fill="none" stroke="#4FC3F7" stroke-width="1.2" opacity="0.6"/>
+            <polyline points="0,84 100,86 200,85 300,87 400,86 500,89 600,88 700,90 800,90" fill="none" stroke="#FFB300" stroke-width="1.2" opacity="0.7"/>
+            <polyline points="0,80 100,79 200,80 300,79 400,80 500,79 600,80 700,79 800,80" fill="none" stroke="#A0AEC0" stroke-width="1" opacity="0.5"/>
+            <polyline points="0,81 100,80 200,81 300,82 400,80 500,81 600,80 700,80 800,81" fill="none" stroke="#A0AEC0" stroke-width="1" opacity="0.5"/>
+          </svg>
+          <div class="row gap-4" style="font-family:var(--ff-data);font-size:10px;color:var(--fg-tertiary);letter-spacing:var(--tracking-wide);text-transform:uppercase">
+            <span><span style="color:#00E5FF">●</span> 上模 75.0</span>
+            <span><span style="color:#4FC3F7">●</span> 上中 75.0</span>
+            <span><span style="color:#FFB300">●</span> 下中 74.8</span>
+            <span><span style="color:#A0AEC0">●</span> 中模/下模</span>
+          </div>
+        </div>
+
+        <div class="stub-tile">
+          <div class="stub-tile-eyebrow"><span>EXT.SPEED</span><span>RPM</span></div>
+          <div class="stub-tile-title">挤出机转速（4 路）</div>
+          <svg viewBox="0 0 800 200" preserveAspectRatio="none" style="width:100%;height:160px">
+            <g stroke="#1C232E" stroke-width="0.5"><line x1="0" y1="40" x2="800" y2="40"/><line x1="0" y1="100" x2="800" y2="100"/><line x1="0" y1="160" x2="800" y2="160"/></g>
+            <polyline points="0,30 100,30 200,30 300,30 400,30 500,30 600,30 700,30 800,30" fill="none" stroke="#00E5FF" stroke-width="1.5"/>
+            <polyline points="0,90 100,90 200,90 300,90 400,90 500,90 600,90 700,90 800,90" fill="none" stroke="#4FC3F7" stroke-width="1.2"/>
+            <polyline points="0,90 100,90 200,90 300,90 400,90 500,90 600,90 700,90 800,90" fill="none" stroke="#A0AEC0" stroke-width="1.2"/>
+            <polyline points="0,110 100,110 200,110 300,110 400,110 500,110 600,110 700,110 800,110" fill="none" stroke="#FFB300" stroke-width="1.2"/>
+          </svg>
+          <div class="row gap-4" style="font-family:var(--ff-data);font-size:10px;color:var(--fg-tertiary);letter-spacing:var(--tracking-wide);text-transform:uppercase">
+            <span><span style="color:#00E5FF">●</span> 90 · 7.6</span>
+            <span><span style="color:#4FC3F7">●</span> 上 · 5.1</span>
+            <span><span style="color:#A0AEC0">●</span> 中 · 5.1</span>
+            <span><span style="color:#FFB300">●</span> 下 · 4.2</span>
+          </div>
+        </div>
+
+        <div class="stub-tile">
+          <div class="stub-tile-eyebrow"><span>SCALE / WIDTH</span><span>KG·M</span></div>
+          <div class="stub-tile-title">称重 + 测宽</div>
+          <svg viewBox="0 0 800 200" preserveAspectRatio="none" style="width:100%;height:160px">
+            <g stroke="#1C232E" stroke-width="0.5"><line x1="0" y1="40" x2="800" y2="40"/><line x1="0" y1="100" x2="800" y2="100"/><line x1="0" y1="160" x2="800" y2="160"/></g>
+            <line x1="0" y1="60" x2="800" y2="60" stroke="#4FC3F7" stroke-width="1" stroke-dasharray="4 4" opacity="0.4"/>
+            <polyline points="0,60 50,62 100,59 150,61 200,60 250,62 300,60 350,61 400,60 450,62 500,61 550,62 600,63 650,64 700,65 750,64 800,63" fill="none" stroke="#00E5FF" stroke-width="1.5"/>
+            <polyline points="0,80 100,80 200,80 300,80 400,80 500,80 600,80 700,80 800,80" fill="none" stroke="#A0AEC0" stroke-width="1"/>
+          </svg>
+          <div class="row gap-4" style="font-family:var(--ff-data);font-size:10px;color:var(--fg-tertiary);letter-spacing:var(--tracking-wide);text-transform:uppercase">
+            <span><span style="color:#00E5FF">●</span> 前秤 0.750</span>
+            <span><span style="color:#A0AEC0">●</span> 后秤 0.748</span>
+            <span style="color:var(--accent)">SP 0.750</span>
+          </div>
+        </div>
+
+        <div class="stub-tile">
+          <div class="stub-tile-eyebrow"><span>FLT.PRESSURE</span><span>MPA</span></div>
+          <div class="stub-tile-title">浮动辊压力（9 辊）</div>
+          <svg viewBox="0 0 800 200" preserveAspectRatio="none" style="width:100%;height:160px">
+            <g stroke="#1C232E" stroke-width="0.5"><line x1="0" y1="40" x2="800" y2="40"/><line x1="0" y1="100" x2="800" y2="100"/><line x1="0" y1="160" x2="800" y2="160"/></g>
+            <g opacity="0.7"><polyline points="0,140 100,140 200,140 300,140 400,140 500,140 600,140 700,140 800,140" stroke="#A0AEC0" stroke-width="1" fill="none"/><polyline points="0,160 800,160" stroke="#A0AEC0" stroke-width="1" fill="none"/><polyline points="0,80 800,80" stroke="#A0AEC0" stroke-width="1" fill="none"/></g>
+            <polyline points="0,40 800,40" fill="none" stroke="#FFB300" stroke-width="1.5"/>
+          </svg>
+          <div class="row gap-4" style="font-family:var(--ff-data);font-size:10px;color:var(--fg-tertiary);letter-spacing:var(--tracking-wide);text-transform:uppercase">
+            <span><span style="color:#FFB300">●</span> F-06 · 2.00 ↑</span>
+            <span><span style="color:#A0AEC0">●</span> F-03 / F-05 · 1.00</span>
+            <span>F-01 / F-04 · 0.30</span>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </main>
+
+  <!-- KPI BAR -->
+  <aside class="kpibar">
+    <div class="kpibar-section">
+      <div class="kpibar-section-label">
+        <span>TREND ENGINE</span>
+        <span>LIVE</span>
+      </div>
+      
+      <div class="kpi is-accent">
+        <div class="kpi-label">采样频率<span class="unit">HZ</span></div>
+        <div class="kpi-value" style="font-size:36px">10</div>
+        <div class="kpi-meta"><span>缓存 <b>24 h</b></span><span>点数 <b>864K</b></span></div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-label">通道数<span class="unit">CH</span></div>
+        <div class="kpi-value" style="font-size:36px">38<span class="unit-inline">/64</span></div>
+        <div class="kpi-meta"><span>已订阅 38</span><span>可用 26</span></div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ACTION BAR -->
+  <footer class="actionbar">
+    <div class="alarm-strip">
+      <div class="alarm-marker">
+        <span class="alarm-marker-dot"></span>
+        <span>ALARMS · 02</span>
+      </div>
+      <div class="alarm-strip-feed">
+        <span class="ts">14:31:42</span>
+        <span class="lvl lvl-h"></span>
+        <span>下挤出机胶温偏高（73.4°C / 限值 72°C）</span>
+      </div>
+    </div>
+    <div class="action-buttons">
+      <button class="btn btn-major">暂停采样</button>
+      <button class="btn btn-major btn-primary">锁定时间窗</button>
+    </div>
+    <div style="padding: 0;">
+      <button class="btn-estop">E-STOP<br>急停</button>
+    </div>
+  </footer>
+
+</div>
+
+<script src="../fit.js?v=15"></script>
+<script>
+function tick() {
+  const d = new Date();
+  document.getElementById('clock').textContent =
+    [d.getHours(), d.getMinutes(), d.getSeconds()].map(n => String(n).padStart(2,'0')).join(':');
+}
+tick(); setInterval(tick, 1000);
+</script>
+<script src="../demo-mock.js"></script>
+<script src="../live.js"></script>
+</body>
+</html>

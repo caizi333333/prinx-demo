@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>登录 — PRINX HMI</title>
+<link rel="stylesheet" href="style.css">
+<style>
+  body {
+    background: var(--bg-canvas);
+    display: grid;
+    place-items: center;
+    height: 100vh;
+    overflow: hidden;
+  }
+  .login-wrap {
+    width: 380px;
+    background: var(--bg-panel);
+    border: 1px solid var(--line-subtle);
+    padding: 32px 28px;
+    box-shadow: 0 8px 24px rgba(0,0,0,.4);
+  }
+  .login-brand {
+    font-family: var(--ff-data);
+    font-size: 14px;
+    letter-spacing: var(--tracking-mega-wide);
+    text-transform: uppercase;
+    color: var(--fg-tertiary);
+    margin-bottom: 4px;
+  }
+  .login-brand .mark { color: var(--accent); }
+  .login-title {
+    font-size: 20px; color: var(--fg-primary);
+    margin-bottom: 24px;
+  }
+  label {
+    display: block; font-family: var(--ff-data);
+    font-size: 11px; letter-spacing: var(--tracking-wide);
+    text-transform: uppercase; color: var(--fg-tertiary);
+    margin-top: 16px; margin-bottom: 6px;
+  }
+  input[type="text"], input[type="password"] {
+    width: 100%; box-sizing: border-box;
+    padding: 10px 12px;
+    background: var(--bg-canvas);
+    border: 1px solid var(--line-subtle);
+    color: var(--fg-primary);
+    font-family: var(--ff-data);
+    font-size: 14px;
+  }
+  input:focus { outline: none; border-color: var(--accent); }
+  button {
+    width: 100%; margin-top: 24px;
+    padding: 12px;
+    background: var(--accent);
+    color: #001;
+    border: none;
+    font-family: var(--ff-data);
+    font-size: 13px;
+    letter-spacing: var(--tracking-mega-wide);
+    text-transform: uppercase;
+    cursor: pointer;
+  }
+  button:disabled { opacity: .5; cursor: wait; }
+  .err {
+    margin-top: 16px; padding: 10px;
+    background: #5a1a1a; color: #ffe7e7;
+    font-family: var(--ff-data); font-size: 12px;
+    display: none;
+  }
+  .hint {
+    margin-top: 16px;
+    font-family: var(--ff-data); font-size: 11px;
+    color: var(--fg-tertiary);
+    text-align: center;
+  }
+</style>
+</head>
+<body>
+<form class="login-wrap" id="login-form" autocomplete="off">
+  <div class="login-brand"><span class="mark">PRINX</span> HMI · v0.5</div>
+  <div class="login-title">操作员登录</div>
+
+  <label for="username">用户名</label>
+  <input type="text" id="username" name="username" required autofocus value="Admin">
+
+  <label for="password">密码</label>
+  <input type="password" id="password" name="password" required>
+
+  <div class="err" id="err"></div>
+
+  <button type="submit" id="submit-btn">登 录</button>
+
+  <div class="hint">设备 ID: 6-sidewall-line · DEV mode 可设 AUTH_DISABLED=1 跳过</div>
+</form>
+
+<script src="demo-mock.js"></script>
+<script src="live.js"></script>
+<script>
+const form = document.getElementById('login-form');
+const errBox = document.getElementById('err');
+const btn = document.getElementById('submit-btn');
+
+form.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  errBox.style.display = 'none';
+  btn.disabled = true;
+  btn.textContent = '登录中…';
+  try {
+    const username = document.getElementById('username').value.trim();
+    const password = document.getElementById('password').value;
+    const r = await fetch('/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password }),
+    });
+    if (!r.ok) {
+      const data = await r.json().catch(() => ({}));
+      throw new Error(data?.error?.message || `HTTP ${r.status}`);
+    }
+    const data = await r.json();
+    localStorage.setItem('prinx.access', data.access_token);
+    localStorage.setItem('prinx.refresh', data.refresh_token);
+    localStorage.setItem('prinx.user', JSON.stringify(data.user));
+    const back = sessionStorage.getItem('prinx.return_to');
+    sessionStorage.removeItem('prinx.return_to');
+    location.href = back && back !== '/login.html' ? back : 'pages/overview.html';
+  } catch (e) {
+    errBox.textContent = '登录失败：' + e.message;
+    errBox.style.display = 'block';
+    btn.disabled = false;
+    btn.textContent = '登 录';
+  }
+});
+
+// If already authenticated, jump straight to overview
+if (localStorage.getItem('prinx.access')) {
+  fetch('/api/signals', { headers: { Authorization: 'Bearer ' + localStorage.getItem('prinx.access') } })
+    .then((r) => r.ok && (location.href = 'pages/overview.html'));
+}
+</script>
+</body>
+</html>

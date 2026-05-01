@@ -1,0 +1,18 @@
+# PRINX HMI — Cloudflare Pages headers
+
+/*
+  X-Frame-Options: SAMEORIGIN
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+
+# 让 demo 资源可在子路径下被任何主域引用（演示需要）
+/demo-mock.js
+  Access-Control-Allow-Origin: *
+  Cache-Control: public, max-age=300
+
+/live.js
+  Access-Control-Allow-Origin: *
+  Cache-Control: public, max-age=300
+
+/style.css
+  Cache-Control: public, max-age=600

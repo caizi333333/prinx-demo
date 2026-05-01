@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=1920">
+<title>PRINX HMI — Industrial Control Platform</title>
+<link rel="stylesheet" href="style.css">
+<style>
+  body { overflow: auto; }
+  .top-strip {
+    height: 48px;
+    border-bottom: 1px solid var(--line-subtle);
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0 var(--sp-7);
+    background: var(--bg-canvas);
+    position: sticky; top: 0; z-index: 10;
+  }
+  .top-strip-left { display: flex; align-items: center; gap: var(--sp-5); }
+  .top-strip-right { display: flex; align-items: center; gap: var(--sp-5); font-family: var(--ff-data); font-size: 13px; letter-spacing: var(--tracking-wide); color: var(--fg-tertiary); text-transform: uppercase; }
+  .corner-mark {
+    font-family: var(--ff-data);
+    font-size: 12px;
+    letter-spacing: var(--tracking-mega-wide);
+    text-transform: uppercase;
+    color: var(--fg-tertiary);
+    display: flex; align-items: center; gap: var(--sp-2);
+  }
+  .corner-mark::before { content: ''; width: 8px; height: 8px; background: var(--accent); }
+  .crosshair { color: var(--accent); }
+  .grid-lines {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background:
+      linear-gradient(90deg, var(--line-subtle) 1px, transparent 1px) 0 0 / calc(100% / 12) 100%,
+      linear-gradient(180deg, var(--line-subtle) 1px, transparent 1px) 0 0 / 100% 96px;
+    opacity: 0.3;
+  }
+  .system-meta {
+    grid-column: span 4;
+    background: var(--bg-panel);
+    border: 1px solid var(--line-subtle);
+    padding: var(--sp-5);
+    display: flex; flex-direction: column; gap: var(--sp-3);
+  }
+  .meta-row {
+    display: flex; justify-content: space-between;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--line-subtle);
+    font-family: var(--ff-data);
+    font-size: 14px;
+    letter-spacing: var(--tracking-wide);
+  }
+  .meta-row:last-child { border-bottom: none; }
+  .meta-row span:first-child { color: var(--fg-tertiary); text-transform: uppercase; font-size: 12px; letter-spacing: var(--tracking-mega-wide); }
+  .meta-row span:last-child { color: var(--fg-primary); }
+
+  .stat-block {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .stat-block-num {
+    font-family: var(--ff-data);
+    font-size: 68px;
+    font-weight: 300;
+    letter-spacing: var(--tracking-mega);
+    color: var(--accent);
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+  }
+  .stat-block-lbl {
+    font-family: var(--ff-data);
+    font-size: 12px;
+    color: var(--fg-tertiary);
+    letter-spacing: var(--tracking-mega-wide);
+    text-transform: uppercase;
+  }
+  .stat-row {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: var(--sp-7);
+    padding: var(--sp-5) 0;
+    border-top: 1px solid var(--line-subtle);
+    border-bottom: 1px solid var(--line-subtle);
+  }
+  .principle {
+    grid-column: span 6;
+    padding: var(--sp-5);
+    border: 1px solid var(--line-subtle);
+    background: var(--bg-panel);
+    display: flex; flex-direction: column; gap: var(--sp-3);
+  }
+  .principle-num {
+    font-family: var(--ff-data);
+    font-size: 44px;
+    font-weight: 300;
+    color: var(--accent);
+    line-height: 1;
+    letter-spacing: var(--tracking-mega);
+  }
+  .principle-title {
+    font-family: var(--ff-cn);
+    font-size: 21px;
+    font-weight: 500;
+    color: var(--fg-primary);
+  }
+  .principle-text {
+    font-size: 16px;
+    color: var(--fg-secondary);
+    line-height: 1.6;
+  }
+</style>
+</head>
+<body>
+
+<!-- Top strip -->
+<div class="top-strip">
+  <div class="top-strip-left">
+    <span class="corner-mark">PRINX HMI · v0.1 · Direction A</span>
+  </div>
+  <div class="top-strip-right">
+    <span>21.5″ / 1920 × 1080</span>
+    <span class="text-accent">●</span>
+    <span>Industrial Minimalism</span>
+    <span class="text-accent">●</span>
+    <span id="clock">--:--:--</span>
+  </div>
+</div>
+
+<div class="landing">
+
+  <!-- HERO -->
+  <section class="landing-hero">
+    <div>
+      <div class="landing-hero-eyebrow">PLATFORM SOFTWARE / TIRE FACTORY HMI / 2026</div>
+      <h1>四复合<br>挤出<b>生产线</b><br>HMI 平台</h1>
+      <p class="landing-hero-meta">
+        统一设计系统覆盖 <b>5#胎面</b> 与 <b>6#胎侧</b> 两条四复合挤出生产线。<br>
+        Direction A — 极简工业美学，单一冷青强调，全矢量动态工艺图，<br>
+        ISA-18.2 报警分级，IATF 16949 操作审计。
+      </p>
+    </div>
+    <div class="landing-hero-side">
+      <div class="meta-row">
+        <span>VISUAL DIRECTION</span>
+        <span>A · TESLA / SPACEX</span>
+      </div>
+      <div class="meta-row">
+        <span>FONT — DATA</span>
+        <span>AZERET MONO</span>
+      </div>
+      <div class="meta-row">
+        <span>FONT — UI</span>
+        <span>ONEST + NOTO SANS SC</span>
+      </div>
+      <div class="meta-row">
+        <span>ACCENT</span>
+        <span style="color:var(--accent)">#00E5FF</span>
+      </div>
+      <div class="meta-row">
+        <span>TARGET</span>
+        <span>21.5″ TOUCH · 1920×1080</span>
+      </div>
+      <div class="meta-row">
+        <span>STATUS</span>
+        <span>MOCKUP · STATIC</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- STATS -->
+  <section class="stat-row">
+    <div class="stat-block">
+      <span class="stat-block-num">8</span>
+      <span class="stat-block-lbl">设备类型 / Equipment Lines</span>
+    </div>
+    <div class="stat-block">
+      <span class="stat-block-num">2</span>
+      <span class="stat-block-lbl">优先实施 / Priority Build</span>
+    </div>
+    <div class="stat-block">
+      <span class="stat-block-num">11</span>
+      <span class="stat-block-lbl">页面模板 / Page Templates</span>
+    </div>
+    <div class="stat-block">
+      <span class="stat-block-num">38</span>
+      <span class="stat-block-lbl">工艺信号 / Signal Tags</span>
+    </div>
+  </section>
+
+  <!-- PAGES -->
+  <section>
+    <div class="section-head">
+      <h2>页面 / Pages</h2>
+      <div class="meta">PRIORITY · 5#胎面 · 6#胎侧</div>
+    </div>
+
+    <div class="landing-grid">
+      <a href="pages/overview.html" class="tile span-6">
+        <div class="tile-eyebrow">
+          <span>P-01 · OVERVIEW</span>
+          <span>HERO</span>
+        </div>
+        <div class="tile-title">主画面 / 工艺总览</div>
+        <p class="tile-desc">四复合挤出生产线全貌：4 个挤出机 → 复合模头 → 冷却 → 浮动辊 → 卷取。<br>动态工艺图 + 实时 KPI + 报警条 + 急停。</p>
+        <svg class="tile-arrow" width="32" height="14" viewBox="0 0 32 14" fill="none">
+          <path d="M0 7 H28 M22 1 L28 7 L22 13" stroke="currentColor" stroke-width="1.5"/>
+        </svg>
+      </a>
+
+      <a href="pages/temperature.html" class="tile span-6">
+        <div class="tile-eyebrow">
+          <span>P-02 · TEMPERATURE</span>
+          <span>MULTI-ZONE</span>
+        </div>
+        <div class="tile-title">温控系统</div>
+        <p class="tile-desc">5 模头温区 + 4 挤出机 ×（螺杆 / 塑化 / 挤出）3 段温区。<br>设定值 vs 实际值并列，偏差条可视化。</p>
+        <svg class="tile-arrow" width="32" height="14" viewBox="0 0 32 14" fill="none">
+          <path d="M0 7 H28 M22 1 L28 7 L22 13" stroke="currentColor" stroke-width="1.5"/>
+        </svg>
+      </a>
+
+      <a href="pages/alarm.html" class="tile">
+        <div class="tile-eyebrow">
+          <span>P-03 · ALARM</span>
+          <span>ISA-18.2</span>
+        </div>
+        <div class="tile-title">报警管理</div>
+        <p class="tile-desc">4 级优先级 · 聚合视图 · 归因到 IO · 操作审计签名。</p>
+        <svg class="tile-arrow" width="32" height="14" viewBox="0 0 32 14" fill="none">
+          <path d="M0 7 H28 M22 1 L28 7 L22 13" stroke="currentColor" stroke-width="1.5"/>
+        </svg>
+      </a>
+
+      <a href="pages/recipe.html" class="tile">
+        <div class="tile-eyebrow">
+          <span>P-04 · RECIPE</span>
+          <span>VERSIONED</span>
+        </div>
+        <div class="tile-title">配方管理</div>
+        <p class="tile-desc">Recipe + TCU 双结构 · 版本 diff · 关联工艺曲线 · MES 下传。</p>
+        <svg class="tile-arrow" width="32" height="14" viewBox="0 0 32 14" fill="none">
+          <path d="M0 7 H28 M22 1 L28 7 L22 13" stroke="currentColor" stroke-width="1.5"/>
+        </svg>
+      </a>
+
+      <a href="pages/mes.html" class="tile">
+        <div class="tile-eyebrow">
+          <span>P-05 · MES</span>
+          <span>WORKORDER</span>
+        </div>
+        <div class="tile-title">MES 工单</div>
+        <p class="tile-desc">当前工单 / 下一工单并列 · 进度可视化 · 自动配方下发。</p>
+        <svg class="tile-arrow" width="32" height="14" viewBox="0 0 32 14" fill="none">
+          <path d="M0 7 H28 M22 1 L28 7 L22 13" stroke="currentColor" stroke-width="1.5"/>
+        </svg>
+      </a>
+    </div>
+  </section>
+
+  <!-- DESIGN TOKENS -->
+  <section>
+    <div class="section-head">
+      <h2>色彩 / Color Tokens</h2>
+      <div class="meta">SEMANTIC · NOT DECORATIVE</div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:var(--sp-5);">
+      <div>
+        <div class="meta" style="margin-bottom:var(--sp-3);font-family:var(--ff-data);font-size: 13px;letter-spacing:var(--tracking-mega-wide);color:var(--fg-tertiary);text-transform:uppercase">SURFACE</div>
+        <div class="swatch-row">
+          <div class="swatch" style="background:#0A0E14"><span class="swatch-hex">#0A0E14</span><span class="swatch-label">CANVAS</span></div>
+          <div class="swatch" style="background:#11161E"><span class="swatch-hex">#11161E</span><span class="swatch-label">PANEL</span></div>
+          <div class="swatch" style="background:#1A2028"><span class="swatch-hex">#1A2028</span><span class="swatch-label">ELEVATED</span></div>
+          <div class="swatch" style="background:#1F2733"><span class="swatch-hex">#1F2733</span><span class="swatch-label">HOVER</span></div>
+          <div class="swatch" style="background:#2A3441"><span class="swatch-hex">#2A3441</span><span class="swatch-label">LINE</span></div>
+          <div class="swatch" style="background:#3E4A5C"><span class="swatch-hex">#3E4A5C</span><span class="swatch-label">STRONG</span></div>
+          <div class="swatch" style="background:#718096"><span class="swatch-hex">#718096</span><span class="swatch-label">MUTE</span></div>
+          <div class="swatch" style="background:#F7FAFC"><span class="swatch-hex" style="color:var(--bg-canvas)">#F7FAFC</span><span class="swatch-label" style="color:var(--bg-canvas)">PRIMARY</span></div>
+        </div>
+      </div>
+      <div>
+        <div class="meta" style="margin-bottom:var(--sp-3);font-family:var(--ff-data);font-size: 13px;letter-spacing:var(--tracking-mega-wide);color:var(--fg-tertiary);text-transform:uppercase">SEMANTIC</div>
+        <div class="swatch-row">
+          <div class="swatch" style="background:#00E5FF"><span class="swatch-hex" style="color:var(--bg-canvas)">#00E5FF</span><span class="swatch-label" style="color:var(--bg-canvas)">ACCENT</span></div>
+          <div class="swatch" style="background:#00D9A3"><span class="swatch-hex" style="color:var(--bg-canvas)">#00D9A3</span><span class="swatch-label" style="color:var(--bg-canvas)">RUNNING</span></div>
+          <div class="swatch" style="background:#FFB300"><span class="swatch-hex" style="color:var(--bg-canvas)">#FFB300</span><span class="swatch-label" style="color:var(--bg-canvas)">WARNING</span></div>
+          <div class="swatch" style="background:#FF5252"><span class="swatch-hex">#FF5252</span><span class="swatch-label">ALARM</span></div>
+          <div class="swatch" style="background:#FF1744"><span class="swatch-hex">#FF1744</span><span class="swatch-label">E-STOP</span></div>
+          <div class="swatch" style="background:#B39DDB"><span class="swatch-hex" style="color:var(--bg-canvas)">#B39DDB</span><span class="swatch-label" style="color:var(--bg-canvas)">MAINT</span></div>
+          <div class="swatch" style="background:#4FC3F7"><span class="swatch-hex" style="color:var(--bg-canvas)">#4FC3F7</span><span class="swatch-label" style="color:var(--bg-canvas)">SETPOINT</span></div>
+          <div class="swatch" style="background:#4A5568"><span class="swatch-hex">#4A5568</span><span class="swatch-label">STANDBY</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- PRINCIPLES -->
+  <section>
+    <div class="section-head">
+      <h2>设计纪律 / Design Discipline</h2>
+      <div class="meta">NON-NEGOTIABLE</div>
+    </div>
+    <div class="landing-grid">
+      <div class="principle">
+        <div class="principle-num">01</div>
+        <div class="principle-title">单一高亮色</div>
+        <p class="principle-text">整屏只有 <span class="text-accent">#00E5FF</span> 一个高饱和色，<br>用于"当前激活"、"交互可点"、"数据正在被关注"。其它一律中性灰阶。</p>
+      </div>
+      <div class="principle">
+        <div class="principle-num">02</div>
+        <div class="principle-title">语义色保留给状态</div>
+        <p class="principle-text">红/黄/绿/紫只在设备状态变更时出现。装饰、按钮、表头一律中性。<br>让色彩本身成为信号。</p>
+      </div>
+      <div class="principle">
+        <div class="principle-num">03</div>
+        <div class="principle-title">数字是主角</div>
+        <p class="principle-text">关键 KPI 用 44–72px 等宽数字。标签退到 11px 全大写。<br>视线先抓数据，再读说明。</p>
+      </div>
+      <div class="principle">
+        <div class="principle-num">04</div>
+        <div class="principle-title">发丝边线代替阴影</div>
+        <p class="principle-text">所有分组用 1px hairline 区隔，不用阴影、不用渐变。<br>层次靠间距和背景明度差表达。</p>
+      </div>
+      <div class="principle">
+        <div class="principle-num">05</div>
+        <div class="principle-title">工艺图 = SVG + 数据</div>
+        <p class="principle-text">禁用 PNG 贴图。管路 stroke-dasharray 动画 = 流动；阀门旋转 = 开度；<br>泵的转速 = 实际转速映射。</p>
+      </div>
+      <div class="principle">
+        <div class="principle-num">06</div>
+        <div class="principle-title">触摸 ≥ 48px / 急停 96px 固定位</div>
+        <p class="principle-text">主操作按钮 64×64，次级 48×48。急停永远在屏幕右下，96×96，<br>红色，无法通过纯软件方式禁用。</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- FOOTER -->
+  <section style="padding-top:var(--sp-5);border-top:1px solid var(--line-subtle);display:flex;justify-content:space-between;color:var(--fg-tertiary);font-family:var(--ff-data);font-size: 13px;letter-spacing:var(--tracking-wide);text-transform:uppercase;">
+    <span>PRINX HMI PLATFORM · MOCKUP V0.1</span>
+    <span>EXTRUSION LINE 5# / 6# · TIRE COMPONENT</span>
+    <span>STATIC · CLICK ANY TILE TO ENTER</span>
+  </section>
+
+</div>
+
+<script>
+  function tick() {
+    const d = new Date();
+    document.getElementById('clock').textContent =
+      [d.getHours(), d.getMinutes(), d.getSeconds()].map(n => String(n).padStart(2,'0')).join(':');
+  }
+  tick(); setInterval(tick, 1000);
+</script>
+</body>
+</html>

@@ -1,0 +1,939 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=1920">
+<title>配方管理 / 6#胎侧 — PRINX HMI</title>
+<link rel="stylesheet" href="../style.css?v=15">
+<style>
+  .recipe-grid {
+    display: grid;
+    grid-template-columns: 360px 1fr;
+    gap: var(--sp-3);
+    height: 100%;
+  }
+  .recipe-list-pane {
+    background: var(--bg-panel);
+    border: 1px solid var(--line-subtle);
+    display: flex; flex-direction: column;
+    overflow: hidden;
+  }
+  .recipe-list-tools {
+    padding: var(--sp-3) var(--sp-4);
+    border-bottom: 1px solid var(--line-default);
+    display: flex; gap: var(--sp-2); align-items: center;
+    background: var(--bg-canvas);
+  }
+  .recipe-list {
+    overflow-y: auto;
+    flex: 1;
+  }
+  .recipe-item {
+    padding: var(--sp-3) var(--sp-4);
+    border-bottom: 1px solid var(--line-subtle);
+    cursor: pointer;
+    display: flex; flex-direction: column; gap: 4px;
+    position: relative;
+    transition: background 100ms ease;
+  }
+  .recipe-item:hover { background: var(--bg-hover); }
+  .recipe-item.active { background: var(--bg-elevated); }
+  .recipe-item.active::before {
+    content: '';
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    width: 2px; background: var(--accent);
+  }
+  .recipe-item-head {
+    display: flex; align-items: baseline; justify-content: space-between;
+  }
+  .recipe-item-name {
+    font-family: var(--ff-cn);
+    font-size: 17px;
+    font-weight: 500;
+    color: var(--fg-primary);
+  }
+  .recipe-item-tag {
+    font-family: var(--ff-data);
+    font-size: 12px;
+    color: var(--fg-tertiary);
+    letter-spacing: var(--tracking-wide);
+    text-transform: uppercase;
+  }
+  .recipe-item-meta {
+    display: flex; justify-content: space-between;
+    font-family: var(--ff-data);
+    font-size: 13px;
+    color: var(--fg-tertiary);
+    letter-spacing: var(--tracking-wide);
+  }
+  .recipe-item-meta b { color: var(--fg-secondary); font-weight: 400; }
+  .recipe-item.in-use {
+    border-left: 2px solid var(--accent);
+  }
+  .recipe-item-badge {
+    display: inline-block;
+    margin-left: 6px;
+    padding: 1px 6px;
+    background: var(--accent-glow);
+    color: var(--accent);
+    font-family: var(--ff-data);
+    font-size: 11px;
+    letter-spacing: var(--tracking-wide);
+    text-transform: uppercase;
+    vertical-align: middle;
+  }
+
+  .recipe-detail {
+    display: grid;
+    grid-template-rows: auto auto auto 1fr auto;
+    gap: var(--sp-2);
+    overflow: hidden;
+  }
+
+  /* Recipe header */
+  .rdh {
+    background: var(--bg-panel);
+    border: 1px solid var(--line-subtle);
+    padding: var(--sp-3);
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: var(--sp-3);
+    align-items: center;
+  }
+  .rdh-left {
+    display: flex; flex-direction: column; gap: 6px;
+  }
+  .rdh-eyebrow {
+    font-family: var(--ff-data);
+    font-size: 13px;
+    color: var(--fg-tertiary);
+    letter-spacing: var(--tracking-mega-wide);
+    text-transform: uppercase;
+  }
+  .rdh-title {
+    font-family: var(--ff-cn);
+    font-size: 34px;
+    font-weight: 500;
+    color: var(--fg-primary);
+    letter-spacing: var(--tracking-tight);
+  }
+  .rdh-title b {
+    font-family: var(--ff-data);
+    color: var(--accent);
+    font-weight: 500;
+    margin-left: var(--sp-3);
+  }
+  .rdh-sub {
+    font-family: var(--ff-cn);
+    font-size: 16px;
+    color: var(--fg-secondary);
+    margin-top: 2px;
+  }
+  .rdh-right {
+    display: flex; flex-direction: column; gap: 4px; text-align: right;
+  }
+  .rdh-version {
+    display: flex; align-items: baseline; gap: var(--sp-3);
+    justify-content: flex-end;
+  }
+  .rdh-version-num {
+    font-family: var(--ff-data);
+    font-size: 44px;
+    font-weight: 300;
+    color: var(--accent);
+    letter-spacing: var(--tracking-mega);
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+  }
+  .rdh-version-label {
+    font-family: var(--ff-data);
+    font-size: 13px;
+    color: var(--fg-tertiary);
+    letter-spacing: var(--tracking-mega-wide);
+    text-transform: uppercase;
+  }
+
+  /* Tabs (Recipe + TCU) */
+  .rec-tabs {
+    display: flex;
+    gap: 1px;
+    background: var(--line-subtle);
+    border: 1px solid var(--line-default);
+  }
+  .rec-tab {
+    flex: 1;
+    background: var(--bg-panel);
+    padding: 14px 18px;
+    cursor: pointer;
+    transition: all 140ms ease;
+    border-bottom: 2px solid transparent;
+    display: flex; flex-direction: column; gap: 2px;
+  }
+  .rec-tab:hover { background: var(--bg-elevated); }
+  .rec-tab.active {
+    border-bottom-color: var(--accent);
+    background: var(--bg-elevated);
+  }
+  .rec-tab-name {
+    font-family: var(--ff-cn);
+    font-size: 17px;
+    font-weight: 500;
+    color: var(--fg-primary);
+  }
+  .rec-tab.active .rec-tab-name { color: var(--accent); }
+  .rec-tab-meta {
+    font-family: var(--ff-data);
+    font-size: 12px;
+    color: var(--fg-tertiary);
+    letter-spacing: var(--tracking-wide);
+    text-transform: uppercase;
+  }
+
+  /* Param table — diff view */
+  .param-section {
+    background: var(--bg-panel);
+    border: 1px solid var(--line-subtle);
+    overflow: auto;
+  }
+  .param-section-head {
+    padding: var(--sp-3) var(--sp-4);
+    border-bottom: 1px solid var(--line-default);
+    display: flex; align-items: center; justify-content: space-between;
+    background: var(--bg-canvas);
+    position: sticky; top: 0; z-index: 1;
+  }
+  .param-section-title {
+    font-family: var(--ff-cn);
+    font-size: 16px;
+    font-weight: 500;
+    color: var(--fg-primary);
+    display: flex; align-items: center; gap: var(--sp-3);
+  }
+  .param-section-title .id {
+    font-family: var(--ff-data);
+    font-size: 12px;
+    color: var(--fg-tertiary);
+    letter-spacing: var(--tracking-mega-wide);
+    text-transform: uppercase;
+  }
+
+  .param-grid {
+    display: grid;
+    grid-template-columns: 1fr 100px 100px 100px 100px;
+    gap: 1px;
+    background: var(--line-subtle);
+  }
+  .param-grid > * {
+    background: var(--bg-panel);
+    padding: 10px var(--sp-4);
+    font-family: var(--ff-cn);
+    font-size: 16px;
+  }
+  .param-grid-head {
+    background: var(--bg-canvas);
+    font-family: var(--ff-data);
+    font-size: 12px;
+    color: var(--fg-tertiary);
+    letter-spacing: var(--tracking-mega-wide);
+    text-transform: uppercase;
+    text-align: right;
+    padding: 8px var(--sp-4);
+  }
+  .param-grid-head:first-child { text-align: left; }
+
+  .param-grid .param-name {
+    color: var(--fg-secondary);
+    display: flex; align-items: center; gap: var(--sp-2);
+  }
+  .param-grid .param-name .tag {
+    font-family: var(--ff-data);
+    font-size: 11px;
+    color: var(--fg-tertiary);
+    letter-spacing: var(--tracking-wide);
+    padding: 1px 4px;
+    border: 1px solid var(--line-default);
+  }
+  .param-grid .v {
+    font-family: var(--ff-data);
+    font-size: 16px;
+    color: var(--fg-primary);
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: var(--tracking-tight);
+  }
+  .param-grid .v.unit { color: var(--fg-tertiary); font-size: 13px; }
+  .param-grid .v.actual.changed { color: var(--accent); }
+  .param-grid .v.prev.changed { color: var(--fg-tertiary); text-decoration: line-through; }
+  .param-grid .row.diff > * { background: rgba(0, 229, 255, 0.04); }
+  .param-grid .v.dev {
+    font-size: 13px;
+    color: var(--fg-tertiary);
+  }
+  .param-grid .v.dev.up { color: var(--accent); }
+  .param-grid .v.dev.down { color: var(--data-dev-lo); }
+
+  .row { display: contents; }
+  .row.diff { display: contents; }
+
+  /* Curve viz */
+  .curve-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--sp-2);
+  }
+  .curve-card {
+    background: var(--bg-panel);
+    border: 1px solid var(--line-subtle);
+    padding: var(--sp-4);
+  }
+  .curve-card-head {
+    display: flex; justify-content: space-between; align-items: baseline;
+    margin-bottom: var(--sp-3);
+  }
+  .curve-card-title {
+    font-family: var(--ff-cn);
+    font-size: 16px;
+    font-weight: 500;
+    color: var(--fg-primary);
+  }
+  .curve-card-meta {
+    font-family: var(--ff-data);
+    font-size: 13px;
+    color: var(--fg-tertiary);
+    letter-spacing: var(--tracking-wide);
+    text-transform: uppercase;
+  }
+
+  /* Footer save bar */
+  .save-bar {
+    background: var(--bg-elevated);
+    border: 1px solid var(--accent-edge);
+    padding: var(--sp-2) var(--sp-3);
+    display: flex; align-items: center; justify-content: space-between;
+    box-shadow: 0 0 0 1px var(--accent-edge), 0 0 24px var(--accent-glow);
+  }
+  .save-bar-info {
+    display: flex; flex-direction: column; gap: 2px;
+  }
+  .save-bar-info .l1 {
+    font-family: var(--ff-cn);
+    font-size: 17px;
+    color: var(--fg-primary);
+    font-weight: 500;
+  }
+  .save-bar-info .l1 b { color: var(--accent); }
+  .save-bar-info .l2 {
+    font-family: var(--ff-data);
+    font-size: 13px;
+    color: var(--fg-tertiary);
+    letter-spacing: var(--tracking-wide);
+    text-transform: uppercase;
+  }
+</style>
+</head>
+<body>
+
+<div class="app">
+
+  <!-- TOPBAR -->
+  <header class="topbar">
+    <a href="../design.html" class="brand" style="text-decoration:none"><span class="brand-mark">PRINX</span>
+      <span class="brand-name">HMI / <b>EXT-LINE</b></span></a>
+    <div class="row" style="margin-left: var(--sp-4);">
+      <span class="line-chip"><span class="line-chip-dot" style="background:var(--fg-tertiary);"></span>5# 胎面 <span style="opacity:.5">TREAD</span></span>
+      <span class="line-chip active"><span class="line-chip-dot"></span>6# 胎侧 <span style="opacity:.7">SIDEWALL</span></span>
+    </div>
+    <div class="topbar-spacer"></div>
+    <div class="topbar-meta">
+      <div class="topbar-meta-item">
+        <span class="topbar-meta-label">SHIFT</span>
+        <span class="topbar-meta-value">B 班</span>
+      </div>
+      <div class="topbar-meta-item">
+        <span class="topbar-meta-label">STATUS</span>
+        <span class="badge badge-running">运行</span>
+      </div>
+      <div class="clock" id="clock">14:32:08</div>
+      <div class="user-chip">
+        <div class="user-avatar">LZ</div>
+        <div class="user-chip-text"><b>李振华</b><span>LV2</span></div>
+      </div>
+    </div>
+  </header>
+
+  <!-- SIDENAV -->
+  <nav class="sidenav">
+    <a href="overview.html" class="nav-item">
+      <svg viewBox="0 0 24 24" fill="none"><path d="M3 12 L12 4 L21 12 M5 10 V20 H19 V10" stroke="currentColor" stroke-width="1.5"/></svg>
+      <span class="nav-item-label">主页</span>
+    </a>
+    <a href="recipe.html" class="nav-item active">
+      <svg viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="7" height="7" stroke="currentColor" stroke-width="1.5"/><rect x="14" y="3" width="7" height="7" stroke="currentColor" stroke-width="1.5"/><rect x="3" y="14" width="7" height="7" stroke="currentColor" stroke-width="1.5"/><rect x="14" y="14" width="7" height="7" stroke="currentColor" stroke-width="1.5"/></svg>
+      <span class="nav-item-label">配方</span>
+    </a>
+    <a href="control.html" class="nav-item">
+      <svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.5"/><path d="M12 2 V5 M12 19 V22 M2 12 H5 M19 12 H22" stroke="currentColor" stroke-width="1.5"/></svg>
+      <span class="nav-item-label">闭环</span>
+    </a>
+    <a href="alarm.html" class="nav-item">
+      <svg viewBox="0 0 24 24" fill="none"><path d="M12 2 L2 22 H22 L12 2 Z" stroke="currentColor" stroke-width="1.5"/><path d="M12 9 V14 M12 17 V18" stroke="currentColor" stroke-width="1.5"/></svg>
+      <span class="nav-item-label">报警</span>
+    </a>
+    <a href="trend.html" class="nav-item">
+      <svg viewBox="0 0 24 24" fill="none"><path d="M3 17 L9 11 L13 15 L21 7" stroke="currentColor" stroke-width="1.5"/><path d="M15 7 H21 V13" stroke="currentColor" stroke-width="1.5"/></svg>
+      <span class="nav-item-label">趋势</span>
+    </a>
+    <a href="temperature.html" class="nav-item">
+      <svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.5"/><path d="M12 2 V5 M12 19 V22 M22 12 H19 M5 12 H2 M19.07 4.93 L16.95 7.05 M7.05 16.95 L4.93 19.07 M19.07 19.07 L16.95 16.95 M7.05 7.05 L4.93 4.93" stroke="currentColor" stroke-width="1.5"/></svg>
+      <span class="nav-item-label">温控</span>
+    </a>
+    <a href="process.html" class="nav-item">
+      <svg viewBox="0 0 24 24" fill="none"><path d="M3 12 H8 L10 6 L14 18 L16 12 H21" stroke="currentColor" stroke-width="1.5"/></svg>
+      <span class="nav-item-label">工艺</span>
+    </a>
+    <a href="mes.html" class="nav-item">
+      <svg viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="18" height="18" stroke="currentColor" stroke-width="1.5"/><path d="M3 9 H21 M9 3 V21" stroke="currentColor" stroke-width="1.5"/></svg>
+      <span class="nav-item-label">MES</span>
+    </a>
+    <a href="maintenance.html" class="nav-item">
+      <svg viewBox="0 0 24 24" fill="none"><path d="M14 7 L17 4 L20 7 L17 10 Z" stroke="currentColor" stroke-width="1.5"/><path d="M14 7 L4 17 V20 H7 L17 10" stroke="currentColor" stroke-width="1.5"/></svg>
+      <span class="nav-item-label">维护</span>
+    </a>
+    <a href="report.html" class="nav-item">
+      <svg viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="18" height="18" stroke="currentColor" stroke-width="1.5"/><path d="M7 9 H17 M7 13 H17 M7 17 H13" stroke="currentColor" stroke-width="1.5"/></svg>
+      <span class="nav-item-label">报表</span>
+    </a>
+  </nav>
+
+  <!-- CANVAS -->
+  <main class="canvas">
+    <div class="canvas-header">
+      <div class="canvas-title">
+        <div class="canvas-title-eyebrow">P-04 · RECIPE MANAGEMENT · 配方系统</div>
+        <div class="canvas-title-text">配方管理 · Recipe + TCU 双结构 · 版本化</div>
+      </div>
+      <div class="canvas-actions">
+        <button class="btn btn-ghost" id="btn-export"><span style="font-family:var(--ff-data);font-size: 13px;letter-spacing:var(--tracking-wide);text-transform:uppercase;color:var(--fg-tertiary)">↗ 导出</span></button>
+        <button class="btn" id="btn-mes-sync">从 MES 同步</button>
+        <button class="btn" id="btn-recipe-clone">克隆为新版本</button>
+        <button class="btn" id="btn-recipe-approve" title="LV4">审批</button>
+        <button class="btn btn-primary" id="btn-recipe-apply">下载到 PLC</button>
+      </div>
+    </div>
+
+    <div class="recipe-grid">
+
+      <!-- LEFT: Recipe list -->
+      <aside class="recipe-list-pane">
+        <div class="recipe-list-tools">
+          <div class="search" style="flex:1">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="1.5"/><path d="M21 21 L16.5 16.5" stroke="currentColor" stroke-width="1.5"/></svg>
+            <input type="text" placeholder="搜索配方编号 / 名称...">
+          </div>
+          <button class="btn btn-icon" title="新建配方">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M12 4 V20 M4 12 H20" stroke="currentColor" stroke-width="1.5"/></svg>
+          </button>
+        </div>
+
+        <div style="padding:var(--sp-3) var(--sp-4);border-bottom:1px solid var(--line-default);background:var(--bg-canvas);font-family:var(--ff-data);font-size: 12px;color:var(--fg-tertiary);letter-spacing:var(--tracking-mega-wide);text-transform:uppercase;display:flex;justify-content:space-between">
+          <span>规格 / SPEC</span>
+          <span>共 18 条</span>
+        </div>
+
+        <div class="recipe-list">
+          <div class="recipe-item active in-use">
+            <div class="recipe-item-head">
+              <span class="recipe-item-name">PS1226 · 半钢胎侧 22"<span class="recipe-item-badge">IN-USE</span></span>
+              <span class="recipe-item-tag">v2.4</span>
+            </div>
+            <div class="recipe-item-meta">
+              <span>S6/2 · S0275 · 06S06</span>
+              <span><b>0.750</b> KG/M</span>
+            </div>
+          </div>
+          <div class="recipe-item">
+            <div class="recipe-item-head">
+              <span class="recipe-item-name">PS1226 · 半钢胎侧 22"</span>
+              <span class="recipe-item-tag">v2.3</span>
+            </div>
+            <div class="recipe-item-meta">
+              <span>S6/2 · S0275 · 06S05</span>
+              <span><b>0.752</b> KG/M</span>
+            </div>
+          </div>
+          <div class="recipe-item">
+            <div class="recipe-item-head">
+              <span class="recipe-item-name">PS1108 · 半钢胎侧 19"</span>
+              <span class="recipe-item-tag">v3.1</span>
+            </div>
+            <div class="recipe-item-meta">
+              <span>S5/4 · S0118 · 06S03</span>
+              <span><b>0.612</b> KG/M</span>
+            </div>
+          </div>
+          <div class="recipe-item">
+            <div class="recipe-item-head">
+              <span class="recipe-item-name">PS1108 · 半钢胎侧 19"</span>
+              <span class="recipe-item-tag">v3.0</span>
+            </div>
+            <div class="recipe-item-meta">
+              <span>S5/4 · S0118 · 06S02</span>
+              <span><b>0.615</b> KG/M</span>
+            </div>
+          </div>
+          <div class="recipe-item">
+            <div class="recipe-item-head">
+              <span class="recipe-item-name">PS0998 · 半钢胎侧 17"</span>
+              <span class="recipe-item-tag">v1.8</span>
+            </div>
+            <div class="recipe-item-meta">
+              <span>S4/2 · S0048 · 06S01</span>
+              <span><b>0.540</b> KG/M</span>
+            </div>
+          </div>
+          <div class="recipe-item">
+            <div class="recipe-item-head">
+              <span class="recipe-item-name">PS0998 · 半钢胎侧 17"</span>
+              <span class="recipe-item-tag">v1.7</span>
+            </div>
+            <div class="recipe-item-meta">
+              <span>S4/2 · S0048 · 05S99</span>
+              <span><b>0.538</b> KG/M</span>
+            </div>
+          </div>
+          <div class="recipe-item">
+            <div class="recipe-item-head">
+              <span class="recipe-item-name">UHP-2218 · UHP 胎侧</span>
+              <span class="recipe-item-tag">v0.9 <span style="color:var(--status-warning)">DRAFT</span></span>
+            </div>
+            <div class="recipe-item-meta">
+              <span>S6/2 · S0301 · 待批</span>
+              <span><b>0.812</b> KG/M</span>
+            </div>
+          </div>
+          <div class="recipe-item">
+            <div class="recipe-item-head">
+              <span class="recipe-item-name">PS1410 · 全钢胎侧 24"</span>
+              <span class="recipe-item-tag">v4.2</span>
+            </div>
+            <div class="recipe-item-meta">
+              <span>S7/3 · S0405 · 07S12</span>
+              <span><b>1.124</b> KG/M</span>
+            </div>
+          </div>
+        </div>
+      </aside>
+
+      <!-- RIGHT: Recipe detail -->
+      <div class="recipe-detail">
+
+        <!-- Header card -->
+        <div class="rdh">
+          <div class="rdh-left">
+            <div class="rdh-eyebrow">RECIPE · CURRENT IN USE</div>
+            <div class="rdh-title">PS1226 · 半钢胎侧 22"<b>S6/2</b></div>
+            <div class="rdh-sub">规格 PS1226 · 预口型号 S0275 · 口型板号 06S06 · 标准重量 0.750 KG/M</div>
+            <div style="display:flex;gap: var(--sp-2);margin-top:var(--sp-2);font-family:var(--ff-data);font-size: 13px;color:var(--fg-tertiary);letter-spacing:var(--tracking-wide);text-transform:uppercase">
+              <span>已生效 · 14:08:22</span>
+              <span style="color:var(--accent-dim)">●</span>
+              <span>共 38 参数 · TCU 18 温区</span>
+              <span style="color:var(--accent-dim)">●</span>
+              <span>批准人：王厂长</span>
+            </div>
+          </div>
+          <div class="rdh-right">
+            <div class="rdh-version">
+              <span class="rdh-version-label">VERSION</span>
+              <span class="rdh-version-num">v2.4</span>
+            </div>
+            <div style="font-family:var(--ff-data);font-size: 13px;color:var(--fg-tertiary);letter-spacing:var(--tracking-wide);text-transform:uppercase">
+              FROM v2.3 · 4 PARAMS CHANGED
+            </div>
+            <div style="font-family:var(--ff-data);font-size: 12px;color:var(--fg-tertiary);letter-spacing:var(--tracking-wide);text-transform:uppercase;margin-top:6px">
+              ↳ 修改人 王建国 · 13:30:12
+            </div>
+          </div>
+        </div>
+
+        <!-- Tabs Recipe / TCU -->
+        <div class="rec-tabs">
+          <div class="rec-tab active">
+            <span class="rec-tab-name">RECIPE / 主配方</span>
+            <span class="rec-tab-meta">20 参数 · 速度 / 重量 / 浮辊 / 测宽</span>
+          </div>
+          <div class="rec-tab">
+            <span class="rec-tab-name">TCU / 温控配方</span>
+            <span class="rec-tab-meta">18 温区 · 模头 / 螺杆 / 塑化 / 挤出</span>
+          </div>
+          <div class="rec-tab">
+            <span class="rec-tab-name">CURVE / 工艺曲线</span>
+            <span class="rec-tab-meta">温度曲线 · 压力曲线 · 速度曲线</span>
+          </div>
+          <div class="rec-tab">
+            <span class="rec-tab-name">HISTORY / 变更历史</span>
+            <span class="rec-tab-meta">v2.4 · v2.3 · v2.2 · v2.1 · v2.0</span>
+          </div>
+        </div>
+
+        <!-- Param diff table -->
+        <div class="param-section">
+          <div class="param-section-head">
+            <div class="param-section-title">
+              <span class="id">SECTION 1</span>
+              <span>挤出机速度 / Extruder Speed</span>
+            </div>
+            <div style="font-family:var(--ff-data);font-size: 12px;color:var(--fg-tertiary);letter-spacing:var(--tracking-wide);text-transform:uppercase">
+              <span style="color:var(--accent)">●</span> 1 项变更 vs v2.3
+            </div>
+          </div>
+          <div class="param-grid">
+            <div class="param-grid-head">参数 / Parameter</div>
+            <div class="param-grid-head">v2.3</div>
+            <div class="param-grid-head">v2.4 (current)</div>
+            <div class="param-grid-head">实际 actual</div>
+            <div class="param-grid-head">单位 unit</div>
+
+            <div class="row">
+              <div class="param-name">90 挤出机速度 <span class="tag">EXT-90.SP</span></div>
+              <div class="v prev">7.5</div>
+              <div class="v actual">7.5</div>
+              <div class="v">7.6</div>
+              <div class="v unit">RPM</div>
+            </div>
+            <div class="row diff">
+              <div class="param-name">上挤出机速度 <span class="tag" style="border-color:var(--accent)">EXT-T.SP</span></div>
+              <div class="v prev changed">5.0</div>
+              <div class="v actual changed">5.1</div>
+              <div class="v">5.1</div>
+              <div class="v unit">RPM</div>
+            </div>
+            <div class="row">
+              <div class="param-name">中挤出机速度 <span class="tag">EXT-M.SP</span></div>
+              <div class="v prev">5.1</div>
+              <div class="v actual">5.1</div>
+              <div class="v">5.1</div>
+              <div class="v unit">RPM</div>
+            </div>
+            <div class="row">
+              <div class="param-name">下挤出机速度 <span class="tag">EXT-B.SP</span></div>
+              <div class="v prev">4.2</div>
+              <div class="v actual">4.2</div>
+              <div class="v">4.2</div>
+              <div class="v unit">RPM</div>
+            </div>
+            <div class="row">
+              <div class="param-name">接取速度 <span class="tag">TAKEUP.SP</span></div>
+              <div class="v prev">5.0</div>
+              <div class="v actual">5.0</div>
+              <div class="v">5.0</div>
+              <div class="v unit">M/MIN</div>
+            </div>
+            <div class="row">
+              <div class="param-name">收缩率限值 <span class="tag">SHRINK.LMT</span></div>
+              <div class="v prev">3.5–4.5</div>
+              <div class="v actual">3.5–4.5</div>
+              <div class="v">4.0</div>
+              <div class="v unit">%</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="param-section">
+          <div class="param-section-head">
+            <div class="param-section-title">
+              <span class="id">SECTION 2</span>
+              <span>称重 + 测宽 / Weighing + Width</span>
+            </div>
+            <div style="font-family:var(--ff-data);font-size: 12px;color:var(--fg-tertiary);letter-spacing:var(--tracking-wide);text-transform:uppercase">
+              <span style="color:var(--accent)">●</span> 1 项变更 vs v2.3
+            </div>
+          </div>
+          <div class="param-grid">
+            <div class="param-grid-head">参数</div>
+            <div class="param-grid-head">v2.3</div>
+            <div class="param-grid-head">v2.4</div>
+            <div class="param-grid-head">实际</div>
+            <div class="param-grid-head">单位</div>
+
+            <div class="row">
+              <div class="param-name">前连续秤标准 <span class="tag">SCL-F.SP</span></div>
+              <div class="v prev">0.750</div>
+              <div class="v actual">0.750</div>
+              <div class="v">0.750</div>
+              <div class="v unit">KG/M</div>
+            </div>
+            <div class="row">
+              <div class="param-name">后连续秤标准 <span class="tag">SCL-R.SP</span></div>
+              <div class="v prev">0.750</div>
+              <div class="v actual">0.750</div>
+              <div class="v" style="color:var(--status-warning)">0.748</div>
+              <div class="v unit">KG/M</div>
+            </div>
+            <div class="row diff">
+              <div class="param-name">后测宽标准 <span class="tag" style="border-color:var(--accent)">WIDTH-R.SP</span></div>
+              <div class="v prev changed">163.0</div>
+              <div class="v actual changed">165.0</div>
+              <div class="v">165.0</div>
+              <div class="v unit">MM</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="param-section">
+          <div class="param-section-head">
+            <div class="param-section-title">
+              <span class="id">SECTION 3</span>
+              <span>浮动辊 / Floater Rolls (× 9)</span>
+            </div>
+            <div style="font-family:var(--ff-data);font-size: 12px;color:var(--fg-tertiary);letter-spacing:var(--tracking-wide);text-transform:uppercase">
+              <span style="color:var(--accent)">●</span> 2 项变更 vs v2.3
+            </div>
+          </div>
+          <div class="param-grid">
+            <div class="param-grid-head">参数</div>
+            <div class="param-grid-head">v2.3</div>
+            <div class="param-grid-head">v2.4</div>
+            <div class="param-grid-head">实际</div>
+            <div class="param-grid-head">单位</div>
+
+            <div class="row"><div class="param-name">辊位置统一 <span class="tag">FLT.POS</span></div><div class="v prev">50.0</div><div class="v actual">50.0</div><div class="v">50.0</div><div class="v unit">MM</div></div>
+            <div class="row"><div class="param-name">F-01 压力</div><div class="v prev">0.30</div><div class="v actual">0.30</div><div class="v">0.30</div><div class="v unit">MPA</div></div>
+            <div class="row"><div class="param-name">F-02 压力</div><div class="v prev">0.10</div><div class="v actual">0.10</div><div class="v">0.10</div><div class="v unit">MPA</div></div>
+            <div class="row"><div class="param-name">F-03 压力</div><div class="v prev">1.00</div><div class="v actual">1.00</div><div class="v">1.00</div><div class="v unit">MPA</div></div>
+            <div class="row"><div class="param-name">F-04 压力</div><div class="v prev">0.30</div><div class="v actual">0.30</div><div class="v">0.30</div><div class="v unit">MPA</div></div>
+            <div class="row"><div class="param-name">F-05 压力</div><div class="v prev">1.00</div><div class="v actual">1.00</div><div class="v">1.00</div><div class="v unit">MPA</div></div>
+            <div class="row diff"><div class="param-name">F-06 压力 <span class="tag" style="border-color:var(--accent)">FLT-06.P</span></div><div class="v prev changed">1.50</div><div class="v actual changed">2.00</div><div class="v">2.00</div><div class="v unit">MPA</div></div>
+            <div class="row diff"><div class="param-name">F-07 压力 <span class="tag" style="border-color:var(--accent)">FLT-07.P</span></div><div class="v prev changed">1.00</div><div class="v actual changed">1.20</div><div class="v">1.20</div><div class="v unit">MPA</div></div>
+            <div class="row"><div class="param-name">F-08 压力</div><div class="v prev">0.80</div><div class="v actual">0.80</div><div class="v">0.80</div><div class="v unit">MPA</div></div>
+            <div class="row"><div class="param-name">F-09 压力</div><div class="v prev">0.90</div><div class="v actual">0.90</div><div class="v">0.90</div><div class="v unit">MPA</div></div>
+          </div>
+        </div>
+
+        <!-- Save bar -->
+        <div class="save-bar">
+          <div class="save-bar-info">
+            <div class="l1">已选 <b>PS1226 v2.4</b> · 当前在用配方 · 4 项参数与 v2.3 不同</div>
+            <div class="l2">下次工单切换时自动应用 · 立即下传需停机或维修模式</div>
+          </div>
+          <div style="display:flex;gap:var(--sp-2)">
+            <button class="btn btn-major">查看 v2.3 全量 diff</button>
+            <button class="btn btn-major">克隆为草稿</button>
+            <button class="btn btn-major btn-primary">立即下传 PLC</button>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+
+  </main>
+
+  <!-- KPI BAR -->
+  <aside class="kpibar">
+    <div class="kpibar-section">
+      <div class="kpibar-section-label">
+        <span>RECIPE STATUS</span>
+        <span>LIVE</span>
+      </div>
+
+      <div class="kpi is-accent">
+        <div class="kpi-label">在用配方</div>
+        <div class="kpi-value" style="font-size: 28px">PS1226 v2.4</div>
+        <div class="kpi-meta">
+          <span>下传 <b>14:08:22</b></span>
+          <span>已运行 <b>0:23:46</b></span>
+        </div>
+      </div>
+
+      <div class="kpi">
+        <div class="kpi-label">参数符合度<span class="unit">%</span></div>
+        <div class="kpi-value" style="font-size: 44px">97.4<span class="unit-inline">%</span></div>
+        <svg class="kpi-spark" viewBox="0 0 280 28" preserveAspectRatio="none">
+          <polyline points="0,3 35,4 70,3 105,4 140,5 175,3 210,4 245,3 280,4" fill="none" stroke="#00E5FF" stroke-width="1.5"/>
+        </svg>
+        <div class="kpi-meta">
+          <span>偏离 <b>1 / 38</b></span>
+          <span style="color:var(--status-warning)">●  后秤 −0.27%</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="kpibar-section">
+      <div class="kpibar-section-label">
+        <span>CHANGE LOG · 变更</span>
+      </div>
+      <div class="kpi" style="padding:var(--sp-3) var(--sp-4)">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px">
+          <span style="font-family:var(--ff-data);font-size: 13px;color:var(--accent);letter-spacing:var(--tracking-wide)">v2.4 ← v2.3</span>
+          <span style="font-family:var(--ff-data);font-size: 12px;color:var(--fg-tertiary);letter-spacing:var(--tracking-wide)">13:30 · 王建国</span>
+        </div>
+        <div style="font-family:var(--ff-cn);font-size: 14px;color:var(--fg-secondary);line-height:1.5">
+          调整后测宽标准 163→165mm · 浮辊 6/7 压力上调 · 上挤出机速度 5.0→5.1RPM
+        </div>
+      </div>
+      <div class="kpi" style="padding:var(--sp-3) var(--sp-4)">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px">
+          <span style="font-family:var(--ff-data);font-size: 13px;color:var(--fg-tertiary);letter-spacing:var(--tracking-wide)">v2.3 ← v2.2</span>
+          <span style="font-family:var(--ff-data);font-size: 12px;color:var(--fg-tertiary);letter-spacing:var(--tracking-wide)">04-25 · 王厂长</span>
+        </div>
+        <div style="font-family:var(--ff-cn);font-size: 14px;color:var(--fg-secondary);line-height:1.5">
+          季度工艺优化 · 全部温区 +2°C · 称重标准 0.755→0.752→0.750
+        </div>
+      </div>
+    </div>
+
+    <div class="kpibar-section">
+      <div class="kpibar-section-label">
+        <span>QUALITY HINT</span>
+      </div>
+      <div class="kpi">
+        <div class="kpi-label" style="color:var(--accent)">★ 工艺反推</div>
+        <div style="font-family:var(--ff-cn);font-size: 16px;color:var(--fg-primary);line-height:1.5;margin-top:6px">
+          基于近 30 批 SPC 数据：PS1226 胎侧厚度 Cpk <b style="color:var(--status-warning)">1.27</b> 偏低，建议下版本
+          <b style="color:var(--accent)">F-06 压力 +0.2 MPa</b> 或
+          <b style="color:var(--accent)">下挤温度 +1°C</b>。
+        </div>
+        <div class="kpi-meta">
+          <span>样本 <b>30 批</b></span>
+          <span>置信 <b>91%</b></span>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ACTION BAR -->
+  <footer class="actionbar">
+    <div class="alarm-strip">
+      <div class="alarm-marker">
+        <span class="alarm-marker-dot"></span>
+        <span>RECIPE</span>
+      </div>
+      <div class="alarm-strip-feed">
+        <span class="ts">14:08:22</span>
+        <span class="lvl lvl-m"></span>
+        <span>配方 PS1226 v2.4 已下传 · 38 参数生效 · 操作员 李振华</span>
+      </div>
+    </div>
+    <div class="action-buttons">
+      <button class="btn btn-major">取消修改</button>
+      <button class="btn btn-major btn-primary">应用并下传</button>
+    </div>
+    <div style="padding: 0;">
+      <button class="btn-estop">E-STOP<br>急停</button>
+    </div>
+  </footer>
+
+</div>
+
+<script src="../fit.js?v=15"></script>
+<script>
+function tick() {
+  const d = new Date();
+  document.getElementById('clock').textContent =
+    [d.getHours(), d.getMinutes(), d.getSeconds()].map(n => String(n).padStart(2,'0')).join(':');
+}
+tick(); setInterval(tick, 1000);
+</script>
+<script src="../demo-mock.js"></script>
+<script src="../live.js"></script>
+<script>
+(function () {
+  let recipes = [];
+  let selectedId = null;
+
+  function escape(s) {
+    const div = document.createElement('div');
+    div.textContent = String(s);
+    return div.innerHTML;
+  }
+
+  function render() {
+    const list = document.querySelector('.recipe-list');
+    if (!list) return;
+    list.innerHTML = recipes.map((r) => {
+      const wpm = r.parameters?.['SCL-FRONT.SP'];
+      const meta = `${escape(r.variant || '—')} · ${escape(r.die_pre || '—')} · ${escape(r.die_plate || '—')}`;
+      const wpmTxt = typeof wpm === 'number' ? `<b>${wpm.toFixed(3)}</b> KG/M` : '—';
+      const cls = (selectedId === r.id ? 'active ' : '') + (r.status === 'in_use' ? 'in-use' : '');
+      const badge = r.status === 'in_use' ? '<span class="recipe-item-badge">IN-USE</span>'
+                  : r.status === 'approved' ? '<span class="recipe-item-badge" style="border-color:#88e288;color:#88e288">APPROVED</span>'
+                  : r.status === 'draft' ? '<span class="recipe-item-badge" style="border-color:#ffb84d;color:#ffb84d">DRAFT</span>'
+                  : '<span class="recipe-item-badge" style="opacity:.5">ARCHIVED</span>';
+      return `
+        <div class="recipe-item ${cls}" data-recipe-id="${escape(r.id)}">
+          <div class="recipe-item-head">
+            <span class="recipe-item-name">${escape(r.spec)} · ${escape(r.name || '')} ${badge}</span>
+            <span class="recipe-item-tag">v${escape(r.version)}</span>
+          </div>
+          <div class="recipe-item-meta">
+            <span>${meta}</span>
+            <span>${wpmTxt}</span>
+          </div>
+        </div>
+      `;
+    }).join('');
+    document.querySelectorAll('.recipe-item').forEach((el) => {
+      el.addEventListener('click', () => {
+        selectedId = el.dataset.recipeId;
+        render();
+      });
+    });
+    // Update count
+    const cntEl = document.querySelector('.recipe-list-pane > div span:last-child');
+    if (cntEl && cntEl.textContent.match(/共.*条/)) cntEl.textContent = `共 ${recipes.length} 条`;
+  }
+
+  async function loadRecipes() {
+    try {
+      recipes = await PRINX.api.get('/api/recipes');
+      const inUse = recipes.find((r) => r.status === 'in_use');
+      if (!selectedId) selectedId = (inUse || recipes[0])?.id;
+      render();
+    } catch (e) { console.warn('recipe load failed', e); }
+  }
+
+  function getOperator() {
+    const u = PRINX.user();
+    if (!u) { alert('请先登录'); throw new Error('not authenticated'); }
+    return u;
+  }
+
+  document.getElementById('btn-recipe-clone')?.addEventListener('click', async () => {
+    if (!selectedId) return alert('请先选择配方');
+    try {
+      const u = getOperator();
+      const r = await PRINX.api.post(`/api/recipes/${selectedId}/clone`, { operator: u.name, note: 'cloned from UI' });
+      alert(`新版本创建：${r.id} (v${r.version})`);
+      await loadRecipes();
+    } catch (e) { alert('克隆失败: ' + e.message); }
+  });
+
+  document.getElementById('btn-recipe-approve')?.addEventListener('click', async () => {
+    if (!selectedId) return alert('请先选择配方');
+    try {
+      const u = getOperator();
+      if (u.level < 4) return alert('审批需要 LV4 权限');
+      await PRINX.api.post(`/api/recipes/${selectedId}/approve`, { approver: u.name });
+      alert('审批成功');
+      await loadRecipes();
+    } catch (e) { alert('审批失败: ' + e.message); }
+  });
+
+  document.getElementById('btn-recipe-apply')?.addEventListener('click', async () => {
+    if (!selectedId) return alert('请先选择配方');
+    try {
+      const u = getOperator();
+      if (u.level < 3) return alert('应用配方需要 LV3+');
+      if (!confirm(`确认下载 ${selectedId} 到 PLC？`)) return;
+      const r = await PRINX.api.post(`/api/recipes/${selectedId}/apply`, { operator: u.name });
+      alert(`已下载到 PLC：${r.applied?.length || 0} 项写回，${r.rejected?.length || 0} 项拒绝`);
+      await loadRecipes();
+    } catch (e) { alert('应用失败: ' + e.message); }
+  });
+
+  loadRecipes();
+})();
+</script>
+</body>
+</html>

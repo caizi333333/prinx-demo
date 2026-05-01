@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=1600">
+<title>闭环控制 / 6#胎侧 — PRINX HMI</title>
+<link rel="stylesheet" href="../style.css?v=15">
+<style>
+  .ctrl-canvas {
+    display: grid;
+    grid-template-columns: 360px 1fr 420px;
+    gap: var(--sp-2);
+    height: 100%;
+    overflow: hidden;
+  }
+  .panel {
+    background: var(--bg-panel);
+    border: 1px solid var(--line-subtle);
+    display: flex; flex-direction: column;
+    overflow: hidden;
+  }
+  .panel-head {
+    padding: var(--sp-3);
+    font-family: var(--ff-data); font-size: 12px;
+    letter-spacing: var(--tracking-wide);
+    text-transform: uppercase;
+    color: var(--fg-tertiary);
+    border-bottom: 1px solid var(--line-subtle);
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .panel-body { padding: var(--sp-3); overflow: auto; flex: 1; }
+
+  .mode-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-bottom: 16px; }
+  .mode-btn {
+    padding: 12px 8px;
+    background: var(--bg-canvas);
+    border: 1px solid var(--line-subtle);
+    color: var(--fg-secondary);
+    font-family: var(--ff-data); font-size: 12px;
+    text-transform: uppercase; letter-spacing: var(--tracking-wide);
+    cursor: pointer;
+  }
+  .mode-btn.active {
+    background: var(--accent); color: #001;
+    border-color: var(--accent);
+  }
+  .mode-btn:hover:not(.active) { border-color: var(--accent); }
+
+  .kv { display: grid; grid-template-columns: 130px 1fr; gap: 8px 12px; margin: 8px 0; font-family: var(--ff-data); font-size: 12px; }
+  .kv .k { color: var(--fg-tertiary); text-transform: uppercase; letter-spacing: var(--tracking-wide); }
+  .kv .v { color: var(--fg-primary); }
+
+  .cycle-list { font-family: var(--ff-data); font-size: 12px; }
+  .cycle-item {
+    border-left: 3px solid var(--line-subtle);
+    padding: 8px 12px;
+    margin-bottom: 6px;
+    background: rgba(255,255,255,0.02);
+  }
+  .cycle-item.applied { border-left-color: #4caf50; }
+  .cycle-item.partial { border-left-color: #ffb84d; }
+  .cycle-item.rejected { border-left-color: #ff5252; }
+  .cycle-meta { display: flex; justify-content: space-between; color: var(--fg-tertiary); font-size: 11px; margin-bottom: 4px; }
+  .cycle-detail { color: var(--fg-primary); }
+  .cycle-source-mock { color: #ff5252; font-weight: bold; }
+
+  .gate-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; margin: 12px 0; }
+  .gate-cell {
+    padding: 8px 4px; text-align: center;
+    background: var(--bg-canvas);
+    border: 1px solid var(--line-subtle);
+    font-family: var(--ff-data); font-size: 10px;
+    color: var(--fg-tertiary);
+    letter-spacing: 0.05em;
+  }
+  .gate-cell .num { font-size: 18px; color: var(--fg-primary); display: block; margin-top: 2px; }
+  .gate-cell.hot { background: #2a0808; border-color: #ff5252; color: #ffb0b0; }
+  .gate-cell.hot .num { color: #ff8080; }
+
+  .pinn-status {
+    padding: 8px 12px; font-family: var(--ff-data); font-size: 12px;
+    text-transform: uppercase; letter-spacing: var(--tracking-wide);
+    margin-bottom: 12px;
+    border: 1px solid var(--line-subtle);
+  }
+  .pinn-status.ok { background: rgba(76, 175, 80, .1); color: #88e288; border-color: #4caf50; }
+  .pinn-status.degraded { background: #2a1c08; color: #ffb84d; border-color: #ffb84d; }
+
+  .estop-btn {
+    width: 100%; margin-top: 12px;
+    padding: 16px;
+    background: #5a1a1a; color: #ffe7e7;
+    border: 1px solid #ff5252;
+    font-family: var(--ff-data); font-size: 14px;
+    text-transform: uppercase; letter-spacing: var(--tracking-mega-wide);
+    cursor: pointer;
+  }
+  .estop-btn:hover { background: #ff5252; color: #001; }
+
+  .empty { color: var(--fg-tertiary); font-family: var(--ff-data); font-size: 12px; padding: 24px; text-align: center; }
+</style>
+</head>
+<body class="page">
+  <header class="top-strip">
+    <div class="top-strip-left">
+      <a href="../design.html" class="brand" style="text-decoration:none"><span class="brand-mark">PRINX</span> <span class="brand-name">HMI / <b>EXT-LINE</b></span></a>
+      <span class="page-title">闭环控制 · CONTROL · v0.5</span>
+    </div>
+    <div class="top-strip-right">
+      <span class="corner-mark">CTRL · LIVE</span>
+    </div>
+  </header>
+
+  <main class="ctrl-canvas">
+
+    <!-- LEFT: Mode + Config + ESTOP -->
+    <section class="panel">
+      <div class="panel-head"><span>控制模式</span><span id="mode-badge" class="corner-mark">--</span></div>
+      <div class="panel-body">
+        <div class="mode-row">
+          <button class="mode-btn" data-set-mode="manual">Manual</button>
+          <button class="mode-btn" data-set-mode="advisory">Advisory</button>
+          <button class="mode-btn" data-set-mode="auto_tune">Auto-tune</button>
+        </div>
+
+        <div class="kv">
+          <span class="k">cycle interval</span><span class="v" id="cfg-interval">--</span>
+          <span class="k">deviation max</span><span class="v" id="cfg-dev">--</span>
+          <span class="k">rate limit</span><span class="v" id="cfg-rate">--</span>
+          <span class="k">enabled by</span><span class="v" id="cfg-by">--</span>
+          <span class="k">enabled at</span><span class="v" id="cfg-at">--</span>
+          <span class="k">last cycle</span><span class="v" id="cfg-last">--</span>
+        </div>
+
+        <h4 style="margin-top:16px; font-size:12px; color:var(--fg-tertiary); letter-spacing:.1em; text-transform:uppercase;">Gate 拒绝分布</h4>
+        <div class="gate-grid" id="gate-grid"></div>
+
+        <button class="estop-btn" id="estop-btn">⚠ E-STOP</button>
+      </div>
+    </section>
+
+    <!-- CENTER: Cycle stream -->
+    <section class="panel">
+      <div class="panel-head"><span>实时 Cycle 流</span><span id="cycle-count" class="corner-mark">0 cycles</span></div>
+      <div class="panel-body" id="cycle-stream"><div class="empty">等待 cycle…</div></div>
+    </section>
+
+    <!-- RIGHT: PINN status + Recent SP changes -->
+    <section class="panel">
+      <div class="panel-head"><span>PINN 状态</span><span id="pinn-breaker" class="corner-mark">--</span></div>
+      <div class="panel-body">
+        <div id="pinn-status" class="pinn-status ok">PINN: 正常</div>
+        <div class="kv">
+          <span class="k">source</span><span class="v" id="pinn-source">--</span>
+          <span class="k">model</span><span class="v" id="pinn-model">--</span>
+          <span class="k">healthy</span><span class="v" id="pinn-healthy">--</span>
+          <span class="k">breaker</span><span class="v" id="pinn-breaker-state">--</span>
+          <span class="k">最近置信度</span><span class="v" id="pinn-conf">--</span>
+        </div>
+
+        <h4 style="margin-top:16px; font-size:12px; color:var(--fg-tertiary); letter-spacing:.1em; text-transform:uppercase;">最近 SP 写回</h4>
+        <div id="recent-sp" class="cycle-list"><div class="empty">尚无写回</div></div>
+      </div>
+    </section>
+
+  </main>
+
+<script src="../demo-mock.js"></script>
+<script src="../live.js"></script>
+<script>
+const GATES = ['source', 'alarm', 'mode', 'shadow', 'range', 'deviation', 'rate'];
+const cycleStream = document.getElementById('cycle-stream');
+const cycleCount = document.getElementById('cycle-count');
+const recentSp = document.getElementById('recent-sp');
+let cycles = [];
+let recentApplied = [];
+
+function fmtTime(ts) {
+  return new Date(ts).toTimeString().slice(0, 8);
+}
+
+async function loadConfig() {
+  try {
+    const cfg = await PRINX.api.get('/api/control/config');
+    renderConfig(cfg);
+  } catch (e) { console.warn('cfg load failed', e); }
+}
+
+async function loadStats() {
+  try {
+    const stats = await PRINX.api.get('/api/control/stats');
+    renderStats(stats);
+  } catch (e) { console.warn('stats load failed', e); }
+}
+
+async function loadHistory() {
+  try {
+    const list = await PRINX.api.get('/api/control/cycles?limit=20');
+    cycles = list;
+    renderCycles();
+  } catch (e) { console.warn('history load failed', e); }
+}
+
+async function loadPinn() {
+  try {
+    const r = await PRINX.api.get('/api/pinn/health');
+    document.getElementById('pinn-healthy').textContent = r.healthy ? '✓' : '✗';
+    document.getElementById('pinn-breaker').textContent = r.breaker;
+    document.getElementById('pinn-breaker-state').textContent = r.breaker;
+    if (r.models?.length) {
+      document.getElementById('pinn-model').textContent = r.models[0].id + '@' + r.models[0].version;
+    }
+  } catch (e) { console.warn('pinn load failed', e); }
+}
+
+function renderConfig(cfg) {
+  document.querySelectorAll('[data-set-mode]').forEach((btn) => {
+    btn.classList.toggle('active', btn.dataset.setMode === cfg.mode);
+  });
+  document.getElementById('mode-badge').textContent = cfg.mode.toUpperCase();
+  document.getElementById('cfg-interval').textContent = cfg.cycle_interval_sec + ' sec';
+  document.getElementById('cfg-dev').textContent = '±' + cfg.gates.deviation_pct_max + '%';
+  document.getElementById('cfg-rate').textContent = cfg.gates.rate_limit_sec + ' sec';
+  document.getElementById('cfg-by').textContent = cfg.enabled_by || '—';
+  document.getElementById('cfg-at').textContent = cfg.enabled_at ? fmtTime(cfg.enabled_at) : '—';
+  document.getElementById('cfg-last').textContent = cfg.last_cycle_at ? fmtTime(cfg.last_cycle_at) : '—';
+}
+
+function renderStats(stats) {
+  const grid = document.getElementById('gate-grid');
+  grid.innerHTML = '';
+  for (const g of GATES) {
+    const n = stats.by_gate[g] ?? 0;
+    const cell = document.createElement('div');
+    cell.className = 'gate-cell' + (n > 0 ? ' hot' : '');
+    cell.innerHTML = `${g.toUpperCase()}<span class="num">${n}</span>`;
+    grid.appendChild(cell);
+  }
+}
+
+function renderCycles() {
+  if (cycles.length === 0) { cycleStream.innerHTML = '<div class="empty">等待 cycle…</div>'; return; }
+  cycleCount.textContent = cycles.length + ' cycles';
+  cycleStream.innerHTML = cycles.slice(0, 20).map((c) => {
+    const status = c.overall_status || c.applied_count > 0 ? 'applied' : 'rejected';
+    const cls = c.overall_status === 'applied' ? 'applied'
+              : c.overall_status === 'partial' ? 'partial' : 'rejected';
+    const sourceCls = c.pinn_source === 'mock_fallback' ? 'cycle-source-mock' : '';
+    const ts = fmtTime(c.timestamp || c.ts || Date.now());
+    const props = (c.proposals || []).slice(0, 3).map((p) => `${p.tag}: ${p.current?.toFixed(2)}→${p.proposed?.toFixed(2)} (${p.decision})`).join(' · ');
+    const failedGates = (c.proposals || []).flatMap((p) => p.gates.filter((g) => !g.passed).map((g) => g.gate));
+    const failedSet = [...new Set(failedGates)];
+    return `
+      <div class="cycle-item ${cls}">
+        <div class="cycle-meta">
+          <span>${ts} · ${c.trigger || ''}</span>
+          <span class="${sourceCls}">${c.pinn_source || 'pinn'} · ${c.pinn_confidence ? (c.pinn_confidence * 100).toFixed(0) + '%' : '--'}</span>
+        </div>
+        <div class="cycle-detail">
+          ${c.applied_count}✓ · ${c.rejected_count}✗ ${failedSet.length ? '· 失败闸: ' + failedSet.join(',') : ''}
+        </div>
+        ${props ? `<div class="cycle-meta" style="margin-top:4px">${props}</div>` : ''}
+      </div>
+    `;
+  }).join('');
+}
+
+function renderRecentSp() {
+  if (recentApplied.length === 0) { recentSp.innerHTML = '<div class="empty">尚无写回</div>'; return; }
+  recentSp.innerHTML = recentApplied.slice(0, 8).map((s) => `
+    <div class="cycle-item applied">
+      <div class="cycle-meta"><span>${fmtTime(s.ts)}</span><span>${s.tag}</span></div>
+      <div class="cycle-detail">${s.from?.toFixed(2)} → <b>${s.to?.toFixed(2)}</b> (${s.delta_pct >= 0 ? '+' : ''}${s.delta_pct?.toFixed(2)}%)</div>
+    </div>
+  `).join('');
+}
+
+// Mode switching
+document.querySelectorAll('[data-set-mode]').forEach((btn) => {
+  btn.addEventListener('click', async () => {
+    const mode = btn.dataset.setMode;
+    const u = PRINX.user();
+    if (!u) { alert('请先登录'); return; }
+    if (mode === 'auto_tune' && u.level < 3) { alert('Auto-tune 需要 LV3+'); return; }
+    try {
+      const operator = { user_id: u.id, user_name: u.name, level: u.level };
+      if (mode === 'auto_tune') {
+        await PRINX.api.post('/api/control/auto-tune/enable', operator);
+      } else if (mode === 'advisory') {
+        await PRINX.api.post('/api/control/auto-tune/disable', { ...operator, reason: 'switch to advisory' });
+      } else {
+        // manual: disable auto_tune (server doesn't have a direct manual switch endpoint;
+        // disabling auto_tune lands in advisory; manual change requires service-level update)
+        await PRINX.api.post('/api/control/auto-tune/disable', { ...operator, reason: 'switch to manual' });
+      }
+      await loadConfig();
+    } catch (e) { alert('切换失败: ' + e.message); }
+  });
+});
+
+// E-STOP
+document.getElementById('estop-btn').addEventListener('click', async () => {
+  if (!confirm('确认触发 E-STOP？')) return;
+  try {
+    await PRINX.api.post('/api/control/estop', { reason: 'operator manual' });
+  } catch (e) { alert('E-STOP 失败: ' + e.message); }
+});
+
+// Live wiring
+PRINX.onCycle((c) => {
+  cycles.unshift(c.cycle_id ? c : c);  // accept both shapes
+  if (cycles.length > 50) cycles.pop();
+  renderCycles();
+  loadStats();
+  if (c.proposals) {
+    for (const p of c.proposals) {
+      if (p.applied) {
+        recentApplied.unshift({ ts: c.timestamp, tag: p.tag, from: p.current, to: p.proposed, delta_pct: p.delta_pct });
+      }
+    }
+    if (recentApplied.length > 30) recentApplied.length = 30;
+    renderRecentSp();
+  }
+});
+PRINX.onModeChange(() => loadConfig());
+PRINX.onPinnStatus((d) => {
+  const box = document.getElementById('pinn-status');
+  document.getElementById('pinn-source').textContent = d.state;
+  if (d.state === 'mock_fallback') {
+    box.className = 'pinn-status degraded';
+    box.textContent = '⚠ PINN: mock fallback — ' + (d.reason || '');
+  } else {
+    box.className = 'pinn-status ok';
+    box.textContent = 'PINN: 正常';
+  }
+});
+
+// Initial loads
+loadConfig();
+loadStats();
+loadHistory();
+loadPinn();
+setInterval(() => { loadStats(); loadPinn(); }, 5000);
+</script>
+</body>
+</html>

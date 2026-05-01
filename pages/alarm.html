@@ -1,0 +1,888 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=1920">
+<title>报警管理 / 6#胎侧 — PRINX HMI</title>
+<link rel="stylesheet" href="../style.css?v=15">
+<style>
+  .alarm-grid {
+    display: grid;
+    grid-template-columns: 280px 1fr;
+    gap: var(--sp-3);
+    height: 100%;
+  }
+  .alarm-side {
+    display: flex; flex-direction: column; gap: var(--sp-2);
+  }
+
+  /* Severity boards */
+  .sev-card {
+    background: var(--bg-panel);
+    border: 1px solid var(--line-subtle);
+    padding: var(--sp-4);
+    display: flex; flex-direction: column; gap: var(--sp-3);
+    cursor: pointer;
+    transition: all 140ms ease;
+    position: relative;
+  }
+  .sev-card:hover { background: var(--bg-elevated); }
+  .sev-card.active { border-color: var(--accent); background: var(--bg-elevated); }
+  .sev-card.active::before {
+    content: '';
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    width: 2px; background: var(--accent);
+  }
+  .sev-card-head {
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .sev-card-edge {
+    width: 4px;
+    align-self: stretch;
+    margin-right: var(--sp-3);
+  }
+  .sev-card-info {
+    display: flex; flex-direction: column; gap: 2px;
+  }
+  .sev-card-tier {
+    font-family: var(--ff-data);
+    font-size: 13px;
+    color: var(--fg-tertiary);
+    letter-spacing: var(--tracking-mega-wide);
+    text-transform: uppercase;
+  }
+  .sev-card-name {
+    font-family: var(--ff-cn);
+    font-size: 17px;
+    color: var(--fg-primary);
+    font-weight: 500;
+  }
+  .sev-card-count {
+    font-family: var(--ff-data);
+    font-size: 38px;
+    font-weight: 300;
+    color: var(--fg-primary);
+    line-height: 1;
+    letter-spacing: var(--tracking-mega);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .sev-c1 .sev-card-edge { background: var(--status-alarm); }
+  .sev-c1.active .sev-card-count { color: var(--status-alarm); }
+  .sev-c2 .sev-card-edge { background: var(--status-warning); }
+  .sev-c2.active .sev-card-count { color: var(--status-warning); }
+  .sev-c3 .sev-card-edge { background: var(--accent-dim); }
+  .sev-c3.active .sev-card-count { color: var(--accent-dim); }
+  .sev-c4 .sev-card-edge { background: var(--fg-tertiary); }
+
+  /* Filter section */
+  .filter-block {
+    background: var(--bg-panel);
+    border: 1px solid var(--line-subtle);
+    padding: var(--sp-4);
+    display: flex; flex-direction: column; gap: var(--sp-3);
+  }
+  .filter-block-title {
+    font-family: var(--ff-data);
+    font-size: 12px;
+    color: var(--fg-tertiary);
+    letter-spacing: var(--tracking-mega-wide);
+    text-transform: uppercase;
+    padding-bottom: var(--sp-2);
+    border-bottom: 1px solid var(--line-subtle);
+  }
+  .filter-row {
+    display: flex; align-items: center; justify-content: space-between;
+    font-family: var(--ff-cn);
+    font-size: 16px;
+    color: var(--fg-secondary);
+    padding: 4px 0;
+    cursor: pointer;
+  }
+  .filter-row:hover { color: var(--fg-primary); }
+  .filter-row.active { color: var(--accent); }
+  .filter-row .ct {
+    font-family: var(--ff-data);
+    font-size: 13px;
+    color: var(--fg-tertiary);
+    letter-spacing: var(--tracking-wide);
+  }
+  .filter-row.active .ct { color: var(--accent); }
+
+  /* Alarm row */
+  .alarm-list {
+    background: var(--bg-panel);
+    border: 1px solid var(--line-subtle);
+    overflow: hidden;
+    display: flex; flex-direction: column;
+  }
+  .alarm-list-head {
+    display: grid;
+    grid-template-columns: 16px 80px 90px 1fr 220px 110px 90px 100px;
+    gap: var(--sp-3);
+    padding: 12px var(--sp-4);
+    border-bottom: 1px solid var(--line-default);
+    font-family: var(--ff-data);
+    font-size: 12px;
+    color: var(--fg-tertiary);
+    letter-spacing: var(--tracking-mega-wide);
+    text-transform: uppercase;
+    background: var(--bg-canvas);
+  }
+  .alarm-row {
+    display: grid;
+    grid-template-columns: 4px 80px 90px 1fr 220px 110px 90px 100px;
+    align-items: center;
+    padding: var(--sp-3) var(--sp-4);
+    gap: var(--sp-3);
+    border-bottom: 1px solid var(--line-subtle);
+    font-family: var(--ff-cn);
+    font-size: 16px;
+    cursor: pointer;
+    transition: background 100ms ease;
+  }
+  .alarm-row:hover { background: var(--bg-hover); }
+  .alarm-row.expanded { background: var(--bg-elevated); }
+  .alarm-row.unack { font-weight: 500; }
+  .alarm-row .sev-edge {
+    align-self: stretch;
+    background: var(--fg-tertiary);
+  }
+  .alarm-row.sev-c1 .sev-edge { background: var(--status-alarm); }
+  .alarm-row.sev-c2 .sev-edge { background: var(--status-warning); }
+  .alarm-row.sev-c3 .sev-edge { background: var(--accent-dim); }
+  .alarm-row.sev-c4 .sev-edge { background: var(--fg-tertiary); }
+
+  .alarm-time {
+    font-family: var(--ff-data);
+    font-size: 14px;
+    color: var(--fg-secondary);
+    font-variant-numeric: tabular-nums;
+    letter-spacing: var(--tracking-tight);
+  }
+  .alarm-time .ms { color: var(--fg-tertiary); font-size: 12px; }
+  .alarm-tag {
+    font-family: var(--ff-data);
+    font-size: 12px;
+    color: var(--accent);
+    letter-spacing: var(--tracking-wide);
+    text-transform: uppercase;
+  }
+  .alarm-msg {
+    color: var(--fg-primary);
+    line-height: 1.4;
+  }
+  .alarm-msg .agg {
+    display: inline-block;
+    margin-left: var(--sp-2);
+    padding: 2px 6px;
+    background: var(--bg-input);
+    border: 1px solid var(--line-default);
+    font-family: var(--ff-data);
+    font-size: 12px;
+    color: var(--fg-tertiary);
+    letter-spacing: var(--tracking-wide);
+    vertical-align: middle;
+  }
+  .alarm-source {
+    font-family: var(--ff-data);
+    font-size: 13px;
+    color: var(--fg-tertiary);
+    letter-spacing: var(--tracking-wide);
+    text-transform: uppercase;
+  }
+  .alarm-source-line { color: var(--accent); }
+  .alarm-state {
+    font-family: var(--ff-data);
+    font-size: 12px;
+    letter-spacing: var(--tracking-wide);
+    text-transform: uppercase;
+    padding: 2px 6px;
+    border: 1px solid var(--line-default);
+    text-align: center;
+    color: var(--fg-secondary);
+  }
+  .alarm-state.unack { background: var(--bg-canvas); color: var(--status-alarm); border-color: rgba(255,82,82,0.3); }
+  .alarm-state.ack { color: var(--fg-tertiary); }
+  .alarm-state.cleared { color: var(--status-running); border-color: rgba(0,217,163,0.3); }
+
+  .alarm-action {
+    display: flex; gap: 6px;
+  }
+  .alarm-action button {
+    padding: 4px 10px;
+    font-family: var(--ff-data);
+    font-size: 12px;
+    letter-spacing: var(--tracking-wide);
+    background: transparent;
+    color: var(--fg-secondary);
+    border: 1px solid var(--line-default);
+    cursor: pointer;
+    text-transform: uppercase;
+    transition: all 120ms ease;
+  }
+  .alarm-action button:hover { color: var(--accent); border-color: var(--accent); }
+
+  .alarm-toolbar {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: var(--sp-3) var(--sp-4);
+    border-bottom: 1px solid var(--line-default);
+    background: var(--bg-canvas);
+  }
+  .alarm-toolbar-left {
+    display: flex; gap: var(--sp-3); align-items: center;
+  }
+  .search {
+    display: inline-flex; align-items: center; gap: var(--sp-2);
+    padding: 6px 12px;
+    background: var(--bg-input);
+    border: 1px solid var(--line-default);
+    width: 240px;
+  }
+  .search input {
+    background: transparent;
+    border: none;
+    color: var(--fg-primary);
+    font-family: var(--ff-cn);
+    font-size: 16px;
+    width: 100%;
+    outline: none;
+  }
+  .search svg { color: var(--fg-tertiary); }
+
+  .alarm-stat-bar {
+    background: var(--bg-canvas);
+    padding: var(--sp-3) var(--sp-4);
+    border-top: 1px solid var(--line-default);
+    display: flex; justify-content: space-between; align-items: center;
+    font-family: var(--ff-data);
+    font-size: 13px;
+    color: var(--fg-tertiary);
+    letter-spacing: var(--tracking-wide);
+    text-transform: uppercase;
+  }
+  .alarm-stat-bar b { color: var(--fg-primary); margin: 0 4px; }
+</style>
+</head>
+<body>
+
+<div class="app">
+
+  <!-- TOPBAR -->
+  <header class="topbar">
+    <a href="../design.html" class="brand" style="text-decoration:none"><span class="brand-mark">PRINX</span>
+      <span class="brand-name">HMI / <b>EXT-LINE</b></span></a>
+    <div class="row" style="margin-left: var(--sp-4);">
+      <span class="line-chip"><span class="line-chip-dot" style="background:var(--fg-tertiary);"></span>5# 胎面 <span style="opacity:.5">TREAD</span></span>
+      <span class="line-chip active"><span class="line-chip-dot"></span>6# 胎侧 <span style="opacity:.7">SIDEWALL</span></span>
+    </div>
+    <div class="topbar-spacer"></div>
+    <div class="topbar-meta">
+      <div class="topbar-meta-item">
+        <span class="topbar-meta-label">SHIFT</span>
+        <span class="topbar-meta-value">B 班</span>
+      </div>
+      <div class="topbar-meta-item">
+        <span class="topbar-meta-label">STATUS</span>
+        <span class="badge badge-warning">2 ALARM</span>
+      </div>
+      <div class="clock" id="clock">14:32:08</div>
+      <div class="user-chip">
+        <div class="user-avatar">LZ</div>
+        <div class="user-chip-text"><b>李振华</b><span>LV2</span></div>
+      </div>
+    </div>
+  </header>
+
+  <!-- SIDENAV -->
+  <nav class="sidenav">
+    <a href="overview.html" class="nav-item">
+      <svg viewBox="0 0 24 24" fill="none"><path d="M3 12 L12 4 L21 12 M5 10 V20 H19 V10" stroke="currentColor" stroke-width="1.5"/></svg>
+      <span class="nav-item-label">主页</span>
+    </a>
+    <a href="recipe.html" class="nav-item">
+      <svg viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="7" height="7" stroke="currentColor" stroke-width="1.5"/><rect x="14" y="3" width="7" height="7" stroke="currentColor" stroke-width="1.5"/><rect x="3" y="14" width="7" height="7" stroke="currentColor" stroke-width="1.5"/><rect x="14" y="14" width="7" height="7" stroke="currentColor" stroke-width="1.5"/></svg>
+      <span class="nav-item-label">配方</span>
+    </a>
+    <a href="control.html" class="nav-item">
+      <svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.5"/><path d="M12 2 V5 M12 19 V22 M2 12 H5 M19 12 H22" stroke="currentColor" stroke-width="1.5"/></svg>
+      <span class="nav-item-label">闭环</span>
+    </a>
+    <a href="alarm.html" class="nav-item active">
+      <svg viewBox="0 0 24 24" fill="none"><path d="M12 2 L2 22 H22 L12 2 Z" stroke="currentColor" stroke-width="1.5"/><path d="M12 9 V14 M12 17 V18" stroke="currentColor" stroke-width="1.5"/></svg>
+      <span class="nav-item-label">报警</span>
+    </a>
+    <a href="trend.html" class="nav-item">
+      <svg viewBox="0 0 24 24" fill="none"><path d="M3 17 L9 11 L13 15 L21 7" stroke="currentColor" stroke-width="1.5"/><path d="M15 7 H21 V13" stroke="currentColor" stroke-width="1.5"/></svg>
+      <span class="nav-item-label">趋势</span>
+    </a>
+    <a href="temperature.html" class="nav-item">
+      <svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.5"/><path d="M12 2 V5 M12 19 V22 M22 12 H19 M5 12 H2 M19.07 4.93 L16.95 7.05 M7.05 16.95 L4.93 19.07 M19.07 19.07 L16.95 16.95 M7.05 7.05 L4.93 4.93" stroke="currentColor" stroke-width="1.5"/></svg>
+      <span class="nav-item-label">温控</span>
+    </a>
+    <a href="process.html" class="nav-item">
+      <svg viewBox="0 0 24 24" fill="none"><path d="M3 12 H8 L10 6 L14 18 L16 12 H21" stroke="currentColor" stroke-width="1.5"/></svg>
+      <span class="nav-item-label">工艺</span>
+    </a>
+    <a href="mes.html" class="nav-item">
+      <svg viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="18" height="18" stroke="currentColor" stroke-width="1.5"/><path d="M3 9 H21 M9 3 V21" stroke="currentColor" stroke-width="1.5"/></svg>
+      <span class="nav-item-label">MES</span>
+    </a>
+    <a href="maintenance.html" class="nav-item">
+      <svg viewBox="0 0 24 24" fill="none"><path d="M14 7 L17 4 L20 7 L17 10 Z" stroke="currentColor" stroke-width="1.5"/><path d="M14 7 L4 17 V20 H7 L17 10" stroke="currentColor" stroke-width="1.5"/></svg>
+      <span class="nav-item-label">维护</span>
+    </a>
+    <a href="report.html" class="nav-item">
+      <svg viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="18" height="18" stroke="currentColor" stroke-width="1.5"/><path d="M7 9 H17 M7 13 H17 M7 17 H13" stroke="currentColor" stroke-width="1.5"/></svg>
+      <span class="nav-item-label">报表</span>
+    </a>
+  </nav>
+
+  <!-- CANVAS -->
+  <main class="canvas">
+
+    <div class="canvas-header">
+      <div class="canvas-title">
+        <div class="canvas-title-eyebrow">P-03 · ALARM MANAGEMENT · ISA-18.2</div>
+        <div class="canvas-title-text">报警管理 · 4 级分级 · 聚合归因</div>
+      </div>
+      <div class="canvas-actions">
+        <button class="btn btn-ghost"><span style="font-family:var(--ff-data);font-size: 13px;letter-spacing:var(--tracking-wide);text-transform:uppercase;color:var(--fg-tertiary)">↗ 导出审计日志</span></button>
+        <button class="btn">配置抑制规则</button>
+        <button class="btn btn-primary">确认全部 (2)</button>
+      </div>
+    </div>
+
+    <div class="alarm-grid">
+
+      <!-- LEFT: severity boards + filters -->
+      <aside class="alarm-side">
+
+        <div class="sev-card sev-c1">
+          <div style="display:flex;align-items:center">
+            <div class="sev-card-edge"></div>
+            <div style="flex:1;display:flex;flex-direction:column;gap:6px">
+              <div class="sev-card-head">
+                <div class="sev-card-info">
+                  <span class="sev-card-tier">TIER 1 · CRITICAL</span>
+                  <span class="sev-card-name">紧急</span>
+                </div>
+                <span class="sev-card-count" style="color:var(--status-alarm)">0</span>
+              </div>
+            </div>
+          </div>
+          <div style="font-family:var(--ff-data);font-size: 12px;color:var(--fg-tertiary);letter-spacing:var(--tracking-wide)">立即停机 · 安全联锁</div>
+        </div>
+
+        <div class="sev-card sev-c2 active">
+          <div style="display:flex;align-items:center">
+            <div class="sev-card-edge"></div>
+            <div style="flex:1;display:flex;flex-direction:column;gap:6px">
+              <div class="sev-card-head">
+                <div class="sev-card-info">
+                  <span class="sev-card-tier">TIER 2 · HIGH</span>
+                  <span class="sev-card-name">严重</span>
+                </div>
+                <span class="sev-card-count" style="color:var(--status-warning)">1</span>
+              </div>
+            </div>
+          </div>
+          <div style="font-family:var(--ff-data);font-size: 12px;color:var(--fg-tertiary);letter-spacing:var(--tracking-wide)">15 分钟内处置 · 影响品质</div>
+        </div>
+
+        <div class="sev-card sev-c3">
+          <div style="display:flex;align-items:center">
+            <div class="sev-card-edge"></div>
+            <div style="flex:1;display:flex;flex-direction:column;gap:6px">
+              <div class="sev-card-head">
+                <div class="sev-card-info">
+                  <span class="sev-card-tier">TIER 3 · MEDIUM</span>
+                  <span class="sev-card-name">一般</span>
+                </div>
+                <span class="sev-card-count" style="color:var(--accent-dim)">1</span>
+              </div>
+            </div>
+          </div>
+          <div style="font-family:var(--ff-data);font-size: 12px;color:var(--fg-tertiary);letter-spacing:var(--tracking-wide)">班次内处置 · 工艺偏离</div>
+        </div>
+
+        <div class="sev-card sev-c4">
+          <div style="display:flex;align-items:center">
+            <div class="sev-card-edge"></div>
+            <div style="flex:1;display:flex;flex-direction:column;gap:6px">
+              <div class="sev-card-head">
+                <div class="sev-card-info">
+                  <span class="sev-card-tier">TIER 4 · LOW</span>
+                  <span class="sev-card-name">通知</span>
+                </div>
+                <span class="sev-card-count" style="color:var(--fg-secondary)">12</span>
+              </div>
+            </div>
+          </div>
+          <div style="font-family:var(--ff-data);font-size: 12px;color:var(--fg-tertiary);letter-spacing:var(--tracking-wide)">无需处置 · 操作记录</div>
+        </div>
+
+        <!-- Source filter -->
+        <div class="filter-block">
+          <div class="filter-block-title">SOURCE / 来源</div>
+          <div class="filter-row active">
+            <span>· 全部 ALL</span>
+            <span class="ct">14</span>
+          </div>
+          <div class="filter-row">
+            <span>· EXT-150-T 上挤出机</span>
+            <span class="ct">3</span>
+          </div>
+          <div class="filter-row">
+            <span>· EXT-150-M 中挤出机</span>
+            <span class="ct">0</span>
+          </div>
+          <div class="filter-row">
+            <span>· EXT-150-B 下挤出机</span>
+            <span class="ct" style="color:var(--status-warning)">5</span>
+          </div>
+          <div class="filter-row">
+            <span>· EXT-90 90 挤出机</span>
+            <span class="ct">2</span>
+          </div>
+          <div class="filter-row">
+            <span>· DIE-HEAD 复合模头</span>
+            <span class="ct">2</span>
+          </div>
+          <div class="filter-row">
+            <span>· FLOATER 浮动辊</span>
+            <span class="ct">1</span>
+          </div>
+          <div class="filter-row">
+            <span>· SCALE 称重</span>
+            <span class="ct">1</span>
+          </div>
+        </div>
+
+        <!-- Type filter -->
+        <div class="filter-block">
+          <div class="filter-block-title">TYPE / 类别</div>
+          <div class="filter-row">
+            <span>· 工艺偏离 PROCESS</span>
+            <span class="ct">3</span>
+          </div>
+          <div class="filter-row">
+            <span>· 设备故障 EQUIPMENT</span>
+            <span class="ct">2</span>
+          </div>
+          <div class="filter-row">
+            <span>· 安全联锁 INTERLOCK</span>
+            <span class="ct">0</span>
+          </div>
+          <div class="filter-row">
+            <span>· 操作记录 OPERATION</span>
+            <span class="ct">9</span>
+          </div>
+        </div>
+
+        <!-- Time filter -->
+        <div class="filter-block">
+          <div class="filter-block-title">TIME / 时段</div>
+          <div class="filter-row active">
+            <span>· 当前班次 CURRENT-SHIFT</span>
+            <span class="ct">14</span>
+          </div>
+          <div class="filter-row">
+            <span>· 最近 1 小时</span>
+            <span class="ct">3</span>
+          </div>
+          <div class="filter-row">
+            <span>· 最近 24 小时</span>
+            <span class="ct">38</span>
+          </div>
+          <div class="filter-row">
+            <span>· 历史查询...</span>
+            <span class="ct">→</span>
+          </div>
+        </div>
+      </aside>
+
+      <!-- RIGHT: alarm list -->
+      <div class="alarm-list">
+        <div class="alarm-toolbar">
+          <div class="alarm-toolbar-left">
+            <div class="search">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="1.5"/><path d="M21 21 L16.5 16.5" stroke="currentColor" stroke-width="1.5"/></svg>
+              <input type="text" placeholder="搜索 tag / 描述 / 操作员...">
+            </div>
+            <div class="chip-row" style="margin-bottom:0">
+              <span class="chip active">未确认 <span class="chip-count">2</span></span>
+              <span class="chip">已确认 <span class="chip-count">3</span></span>
+              <span class="chip">已恢复 <span class="chip-count">9</span></span>
+            </div>
+          </div>
+          <div style="font-family:var(--ff-data);font-size: 13px;color:var(--fg-tertiary);letter-spacing:var(--tracking-wide);text-transform:uppercase">
+            14 条 · 实时更新 LIVE
+          </div>
+        </div>
+
+        <div class="alarm-list-head">
+          <span></span>
+          <span>Time</span>
+          <span>Tag</span>
+          <span>Description / 描述</span>
+          <span>Source / 来源</span>
+          <span>State</span>
+          <span>Operator</span>
+          <span>Action</span>
+        </div>
+
+        <!-- Alarm rows (real ones from references + extrapolated) -->
+        <div class="alarm-row sev-c2 unack">
+          <div class="sev-edge"></div>
+          <div class="alarm-time">14:31:42<br><span class="ms">.184</span></div>
+          <div class="alarm-tag">TT-150B-Z3</div>
+          <div class="alarm-msg">下挤出机胶温低于设定 <b style="color:var(--status-warning);font-weight:500">−1.2 °C</b> · 实测 73.8 / 设定 75.0
+            <span class="agg">×3 · 03:24</span>
+          </div>
+          <div class="alarm-source">EXT-150-B<br><span class="alarm-source-line">↳ Z3 挤出段</span></div>
+          <div class="alarm-state unack">未确认</div>
+          <div class="alarm-source">—</div>
+          <div class="alarm-action"><button>确认</button><button>归因</button></div>
+        </div>
+
+        <div class="alarm-row sev-c3 unack">
+          <div class="sev-edge"></div>
+          <div class="alarm-time">14:28:11<br><span class="ms">.402</span></div>
+          <div class="alarm-tag">SCL-REAR</div>
+          <div class="alarm-msg">后连续秤称重偏差 <b>−0.27%</b> 持续 4 分钟 · 0.748 / 标准 0.750 KG/M
+            <span class="agg">持续中</span>
+          </div>
+          <div class="alarm-source">SCALE-R<br><span class="alarm-source-line">↳ 后连续秤</span></div>
+          <div class="alarm-state unack">未确认</div>
+          <div class="alarm-source">—</div>
+          <div class="alarm-action"><button>确认</button><button>归因</button></div>
+        </div>
+
+        <div class="alarm-row sev-c2">
+          <div class="sev-edge"></div>
+          <div class="alarm-time">14:18:34<br><span class="ms">.027</span></div>
+          <div class="alarm-tag">PT-150T</div>
+          <div class="alarm-msg">上挤出机压力波动 <b>±0.4 MPa</b> · 持续 2 分钟后自恢复
+            <span class="agg">×8 · 已恢复</span>
+          </div>
+          <div class="alarm-source">EXT-150-T<br><span class="alarm-source-line">↳ 压力</span></div>
+          <div class="alarm-state ack">已确认</div>
+          <div class="alarm-source">王建国</div>
+          <div class="alarm-action"><button>归因</button></div>
+        </div>
+
+        <div class="alarm-row sev-c4">
+          <div class="sev-edge"></div>
+          <div class="alarm-time">14:11:09<br><span class="ms">.812</span></div>
+          <div class="alarm-tag">REC-LD</div>
+          <div class="alarm-msg">操作员 <b>李振华</b> 下载温控配方 TCU-S6/2 v2.4</div>
+          <div class="alarm-source">SYSTEM<br><span class="alarm-source-line">↳ 配方下传</span></div>
+          <div class="alarm-state cleared">已记录</div>
+          <div class="alarm-source">李振华</div>
+          <div class="alarm-action"><button>详情</button></div>
+        </div>
+
+        <div class="alarm-row sev-c2">
+          <div class="sev-edge"></div>
+          <div class="alarm-time">14:08:22<br><span class="ms">.451</span></div>
+          <div class="alarm-tag">SAFE-DOOR</div>
+          <div class="alarm-msg">机头安全门打开 <b style="color:var(--status-warning)">→ 自动停机已触发</b>
+            <span class="agg">×2 · 14:08–14:10</span>
+          </div>
+          <div class="alarm-source">DIE-HEAD<br><span class="alarm-source-line">↳ 安全联锁</span></div>
+          <div class="alarm-state cleared">已恢复</div>
+          <div class="alarm-source">王建国</div>
+          <div class="alarm-action"><button>归因</button></div>
+        </div>
+
+        <div class="alarm-row sev-c4">
+          <div class="sev-edge"></div>
+          <div class="alarm-time">14:00:00<br><span class="ms">.007</span></div>
+          <div class="alarm-tag">SHIFT-IN</div>
+          <div class="alarm-msg">B 班接班 · 李振华 (LV2) · 王建国 (LV1) 上岗</div>
+          <div class="alarm-source">SYSTEM<br><span class="alarm-source-line">↳ 班次切换</span></div>
+          <div class="alarm-state cleared">已记录</div>
+          <div class="alarm-source">系统</div>
+          <div class="alarm-action"><button>详情</button></div>
+        </div>
+
+        <div class="alarm-row sev-c3">
+          <div class="sev-edge"></div>
+          <div class="alarm-time">13:42:55<br><span class="ms">.234</span></div>
+          <div class="alarm-tag">FLT-06</div>
+          <div class="alarm-msg">浮动辊 6 压力偏高 <b>2.0 MPa</b> · 标准 1.5 MPa
+            <span class="agg">已恢复</span>
+          </div>
+          <div class="alarm-source">FLOATER<br><span class="alarm-source-line">↳ 06</span></div>
+          <div class="alarm-state cleared">已恢复</div>
+          <div class="alarm-source">王建国</div>
+          <div class="alarm-action"><button>归因</button></div>
+        </div>
+
+        <div class="alarm-row sev-c4">
+          <div class="sev-edge"></div>
+          <div class="alarm-time">13:30:12<br><span class="ms">.118</span></div>
+          <div class="alarm-tag">REC-CHG</div>
+          <div class="alarm-msg">操作员 <b>王建国</b> 修改配方 S6/2 v2.3 → v2.4 · 修改 4 项参数</div>
+          <div class="alarm-source">SYSTEM<br><span class="alarm-source-line">↳ 配方变更</span></div>
+          <div class="alarm-state cleared">已记录</div>
+          <div class="alarm-source">王建国</div>
+          <div class="alarm-action"><button>diff</button></div>
+        </div>
+
+        <!-- Stat bar -->
+        <div class="alarm-stat-bar" style="margin-top:auto">
+          <div>
+            14 条 · 已显示 <b>14</b> · 未确认 <b style="color:var(--status-alarm)">2</b> · 待处置 <b>2</b>
+          </div>
+          <div>
+            班次启动至今 <b>14:00:00</b> · 报警密度 <b>4.2/H</b> · 低于目标 6.0/H
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+  </main>
+
+  <!-- KPI BAR — alarm focused -->
+  <aside class="kpibar">
+    <div class="kpibar-section">
+      <div class="kpibar-section-label">
+        <span>SHIFT TODAY · B 班</span>
+        <span>14:00 · 03:42 ELAPSED</span>
+      </div>
+      <div class="kpi is-accent">
+        <div class="kpi-label">报警总数<span class="unit">COUNT</span></div>
+        <div class="kpi-value">14</div>
+        <svg class="kpi-spark" viewBox="0 0 280 28" preserveAspectRatio="none">
+          <polyline points="0,24 35,22 70,18 105,20 140,16 175,14 210,18 245,16 280,12" fill="none" stroke="#00E5FF" stroke-width="1.5"/>
+        </svg>
+        <div class="kpi-meta">
+          <span>密度 <b>4.2/H</b></span>
+          <span>目标 <b>≤ 6/H</b></span>
+        </div>
+      </div>
+
+      <div class="kpi">
+        <div class="kpi-label">平均确认时长<span class="unit">SEC</span></div>
+        <div class="kpi-value" style="font-size: 44px;">42<span class="unit-inline">s</span></div>
+        <div class="kpi-meta">
+          <span>P95 <b>2:18</b></span>
+          <span style="color:var(--status-running)">●  GOOD</span>
+        </div>
+      </div>
+
+      <div class="kpi">
+        <div class="kpi-label">未处置时长<span class="unit">MAX</span></div>
+        <div class="kpi-value" style="font-size: 44px;color:var(--status-warning)">03:24</div>
+        <div class="kpi-meta">
+          <span>位置 <b>EXT-150-B</b></span>
+          <span>目标 <b>≤ 15:00</b></span>
+        </div>
+      </div>
+    </div>
+
+    <div class="kpibar-section">
+      <div class="kpibar-section-label">
+        <span>HOTSPOT · 热点设备</span>
+      </div>
+
+      <div class="kpi" style="padding:var(--sp-3) var(--sp-4)">
+        <div style="display:flex;justify-content:space-between;align-items:baseline">
+          <div>
+            <div style="font-family:var(--ff-data);font-size: 12px;color:var(--fg-tertiary);letter-spacing:var(--tracking-mega-wide)">EXT-150-B</div>
+            <div style="font-family:var(--ff-cn);font-size: 16px;color:var(--fg-primary);margin-top:2px">下挤出机</div>
+          </div>
+          <div style="font-family:var(--ff-data);font-size: 28px;color:var(--status-warning);font-variant-numeric:tabular-nums">5</div>
+        </div>
+        <div style="height:3px;background:var(--bg-input);margin-top:var(--sp-2)">
+          <div style="width:36%;height:100%;background:var(--status-warning)"></div>
+        </div>
+      </div>
+      <div class="kpi" style="padding:var(--sp-3) var(--sp-4)">
+        <div style="display:flex;justify-content:space-between;align-items:baseline">
+          <div>
+            <div style="font-family:var(--ff-data);font-size: 12px;color:var(--fg-tertiary);letter-spacing:var(--tracking-mega-wide)">EXT-150-T</div>
+            <div style="font-family:var(--ff-cn);font-size: 16px;color:var(--fg-primary);margin-top:2px">上挤出机</div>
+          </div>
+          <div style="font-family:var(--ff-data);font-size: 28px;color:var(--accent-dim);font-variant-numeric:tabular-nums">3</div>
+        </div>
+        <div style="height:3px;background:var(--bg-input);margin-top:var(--sp-2)">
+          <div style="width:21%;height:100%;background:var(--accent-dim)"></div>
+        </div>
+      </div>
+      <div class="kpi" style="padding:var(--sp-3) var(--sp-4)">
+        <div style="display:flex;justify-content:space-between;align-items:baseline">
+          <div>
+            <div style="font-family:var(--ff-data);font-size: 12px;color:var(--fg-tertiary);letter-spacing:var(--tracking-mega-wide)">DIE-HEAD</div>
+            <div style="font-family:var(--ff-cn);font-size: 16px;color:var(--fg-primary);margin-top:2px">复合模头</div>
+          </div>
+          <div style="font-family:var(--ff-data);font-size: 28px;color:var(--fg-secondary);font-variant-numeric:tabular-nums">2</div>
+        </div>
+        <div style="height:3px;background:var(--bg-input);margin-top:var(--sp-2)">
+          <div style="width:14%;height:100%;background:var(--fg-secondary)"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="kpibar-section">
+      <div class="kpibar-section-label">
+        <span>AI INSIGHT</span>
+      </div>
+      <div class="kpi">
+        <div class="kpi-label" style="color:var(--accent)">★ 模型预警</div>
+        <div style="font-family:var(--ff-cn);font-size: 16px;color:var(--fg-primary);line-height:1.5;margin-top:6px">
+          基于近 24h 趋势，<b style="color:var(--status-warning)">下挤出机胶温</b>预计在 <b style="color:var(--accent)">14:46 ± 4min</b> 触达 <b>72°C</b> 警戒线。
+        </div>
+        <div class="kpi-meta">
+          <span>置信度 <b>87%</b></span>
+          <span>建议 <b>提前调温</b></span>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ACTION BAR -->
+  <footer class="actionbar">
+    <div class="alarm-strip">
+      <div class="alarm-marker">
+        <span class="alarm-marker-dot"></span>
+        <span>2 UNACK</span>
+      </div>
+      <div class="alarm-strip-feed">
+        <span class="ts">14:31:42</span>
+        <span class="lvl lvl-h"></span>
+        <span>下挤出机胶温偏低 −1.2°C （选中）</span>
+      </div>
+    </div>
+    <div class="action-buttons">
+      <button class="btn btn-major">归因诊断</button>
+      <button class="btn btn-major btn-primary">确认报警</button>
+    </div>
+    <div style="padding: 0;">
+      <button class="btn-estop">E-STOP<br>急停</button>
+    </div>
+  </footer>
+
+</div>
+
+<script src="../fit.js?v=15"></script>
+<script>
+function tick() {
+  const d = new Date();
+  document.getElementById('clock').textContent =
+    [d.getHours(), d.getMinutes(), d.getSeconds()].map(n => String(n).padStart(2,'0')).join(':');
+}
+tick(); setInterval(tick, 1000);
+</script>
+<script src="../demo-mock.js"></script>
+<script src="../live.js"></script>
+<script>
+(function () {
+  const SEV_CLASS = { 1: 'sev-c1', 2: 'sev-c2', 3: 'sev-c3', 4: 'sev-c4' };
+  const STATE_LABEL = { unack: '未确认', ack: '已确认', cleared: '已恢复' };
+
+  function fmtTime(ms) {
+    const d = new Date(ms);
+    const hms = [d.getHours(), d.getMinutes(), d.getSeconds()].map(n => String(n).padStart(2, '0')).join(':');
+    const ml = String(d.getMilliseconds()).padStart(3, '0');
+    return { hms, ml };
+  }
+
+  function escape(s) {
+    const div = document.createElement('div');
+    div.textContent = String(s);
+    return div.innerHTML;
+  }
+
+  function buildRow(a) {
+    const t = fmtTime(a.last_occurred_at || a.occurred_at);
+    const ackedBy = a.acknowledged_by ? escape(a.acknowledged_by) : '—';
+    const stateLabel = STATE_LABEL[a.state] || a.state;
+    const aggBadge = a.count > 1 ? `<span class="agg">×${a.count}</span>` : '';
+    const actions = a.state === 'unack'
+      ? `<button data-ack="${a.id}">确认</button><button>归因</button>`
+      : `<button>详情</button>`;
+    return `
+      <div class="alarm-row ${SEV_CLASS[a.tier] || 'sev-c4'} ${a.state === 'unack' ? 'unack' : ''}" data-alarm-id="${a.id}">
+        <div class="sev-edge"></div>
+        <div class="alarm-time">${t.hms}<br><span class="ms">.${t.ml}</span></div>
+        <div class="alarm-tag">${escape(a.tag)}</div>
+        <div class="alarm-msg">${escape(a.message)} ${aggBadge}</div>
+        <div class="alarm-source">${escape(a.source || '—')}</div>
+        <div class="alarm-state ${a.state}">${stateLabel}</div>
+        <div class="alarm-source">${ackedBy}</div>
+        <div class="alarm-action">${actions}</div>
+      </div>
+    `;
+  }
+
+  function findRowsContainer() {
+    return document.querySelector('.alarm-list');
+  }
+
+  function clearStaticRows() {
+    const list = findRowsContainer();
+    if (!list) return;
+    list.querySelectorAll('.alarm-row').forEach((r) => r.remove());
+  }
+
+  let liveRoot;
+  function ensureLiveRoot() {
+    if (liveRoot && liveRoot.isConnected) return liveRoot;
+    const list = findRowsContainer();
+    if (!list) return null;
+    const head = list.querySelector('.alarm-list-head');
+    liveRoot = document.createElement('div');
+    liveRoot.id = 'alarm-rows-live';
+    head ? head.after(liveRoot) : list.appendChild(liveRoot);
+    return liveRoot;
+  }
+
+  async function loadAlarms() {
+    try {
+      clearStaticRows();
+      const root = ensureLiveRoot();
+      if (!root) return;
+      const [active, history] = await Promise.all([
+        PRINX.api.get('/api/alarms').catch(() => []),
+        PRINX.api.get('/api/alarms/history?limit=20').catch(() => []),
+      ]);
+      const seen = new Set();
+      const all = [];
+      for (const a of [...active, ...history]) {
+        if (seen.has(a.id)) continue;
+        seen.add(a.id); all.push(a);
+      }
+      all.sort((a, b) => (b.last_occurred_at || b.occurred_at) - (a.last_occurred_at || a.occurred_at));
+      root.innerHTML = all.map(buildRow).join('');
+      updateChips(active);
+    } catch (e) { console.warn('alarm load failed', e); }
+  }
+
+  function updateChips(active) {
+    const unack = active.filter((a) => a.state === 'unack').length;
+    const acked = active.filter((a) => a.state === 'ack').length;
+    document.querySelectorAll('.chip').forEach((c) => {
+      const t = c.textContent.trim();
+      const cnt = c.querySelector('.chip-count');
+      if (!cnt) return;
+      if (t.startsWith('未确认')) cnt.textContent = unack;
+      else if (t.startsWith('已确认')) cnt.textContent = acked;
+    });
+    document.querySelectorAll('.alarm-marker span:last-child').forEach((s) => { s.textContent = `${unack} UNACK`; });
+  }
+
+  // WS hooks
+  PRINX.onAlarm(() => { loadAlarms(); });
+
+  // Initial + periodic refresh
+  loadAlarms();
+  setInterval(loadAlarms, 10000);
+})();
+</script>
+</body>
+</html>

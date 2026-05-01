@@ -1,0 +1,885 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=1600">
+<title>PINN 训练 / 6#胎侧 — PRINX HMI</title>
+<link rel="stylesheet" href="../style.css?v=15">
+<style>
+  .train-canvas {
+    display: grid;
+    grid-template-columns: 380px 1fr;
+    gap: var(--sp-2);
+    height: 100%;
+    overflow: hidden;
+  }
+
+  .panel {
+    background: var(--bg-panel);
+    border: 1px solid var(--line-subtle);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .panel-head {
+    padding: var(--sp-3);
+    border-bottom: 1px solid var(--line-subtle);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: var(--bg-canvas);
+  }
+  .panel-head h3 {
+    font-family: var(--ff-cn);
+    font-size: 16px;
+    font-weight: 500;
+    color: var(--fg-primary);
+  }
+  .panel-head .meta {
+    font-family: var(--ff-data);
+    font-size: 12px;
+    color: var(--fg-tertiary);
+    letter-spacing: var(--tracking-mega-wide);
+    text-transform: uppercase;
+  }
+  .panel-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: var(--sp-3);
+  }
+
+  /* ─── Left column: 数据 + 参数 ─── */
+  .left-col { display: flex; flex-direction: column; gap: var(--sp-2); overflow: hidden; }
+
+  .form-row {
+    display: flex; flex-direction: column; gap: 4px;
+    margin-bottom: var(--sp-3);
+  }
+  .form-label {
+    font-family: var(--ff-data);
+    font-size: 11px;
+    color: var(--fg-tertiary);
+    letter-spacing: var(--tracking-mega-wide);
+    text-transform: uppercase;
+    display: flex;
+    justify-content: space-between;
+  }
+  .form-label .hint {
+    color: var(--fg-secondary);
+    text-transform: none;
+    letter-spacing: 0;
+  }
+  .form-input {
+    background: var(--bg-input);
+    border: 1px solid var(--line-default);
+    color: var(--fg-primary);
+    padding: 10px 12px;
+    font-family: var(--ff-cn);
+    font-size: 14px;
+    outline: none;
+    transition: border-color 120ms ease;
+  }
+  .form-input:focus { border-color: var(--accent); }
+  .form-input.text-mono { font-family: var(--ff-data); font-variant-numeric: tabular-nums; }
+  .form-row-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--sp-2);
+  }
+
+  .pill-group {
+    display: flex;
+    gap: 1px;
+    background: var(--line-subtle);
+    border: 1px solid var(--line-default);
+  }
+  .pill {
+    flex: 1;
+    background: var(--bg-panel);
+    padding: 8px 10px;
+    text-align: center;
+    cursor: pointer;
+    font-family: var(--ff-cn);
+    font-size: 13px;
+    color: var(--fg-secondary);
+    transition: all 100ms ease;
+  }
+  .pill.active { color: var(--accent); background: var(--bg-elevated); }
+  .pill:hover { color: var(--fg-primary); }
+
+  /* ─── Center: Job 详情 ─── */
+
+  .center-col { display: grid; grid-template-rows: auto 1fr auto; gap: var(--sp-2); overflow: hidden; }
+
+  .job-header {
+    background: var(--bg-panel);
+    border: 1px solid var(--line-subtle);
+    padding: var(--sp-3) var(--sp-4);
+    display: grid;
+    grid-template-columns: 1fr auto auto auto;
+    align-items: center;
+    gap: var(--sp-4);
+  }
+  .job-id {
+    font-family: var(--ff-data);
+    font-size: 12px;
+    color: var(--fg-tertiary);
+    letter-spacing: var(--tracking-mega-wide);
+    text-transform: uppercase;
+  }
+  .job-name {
+    font-family: var(--ff-cn);
+    font-size: 22px;
+    font-weight: 500;
+    color: var(--fg-primary);
+    margin-top: 2px;
+  }
+  .job-status-pill {
+    padding: 6px 14px;
+    font-family: var(--ff-data);
+    font-size: 12px;
+    letter-spacing: var(--tracking-mega-wide);
+    text-transform: uppercase;
+    border: 1px solid var(--line-default);
+  }
+  .job-status-pill.training { color: var(--accent); border-color: var(--accent); background: var(--accent-glow); }
+  .job-status-pill.completed { color: var(--status-running); border-color: rgba(0,217,163,0.4); }
+  .job-status-pill.failed { color: var(--status-alarm); border-color: rgba(255,82,82,0.3); }
+  .job-status-pill.cancelled { color: var(--fg-tertiary); }
+
+  .job-progress-num {
+    font-family: var(--ff-data);
+    font-size: 36px;
+    color: var(--accent);
+    font-variant-numeric: tabular-nums;
+    letter-spacing: var(--tracking-mega);
+    line-height: 1;
+  }
+  .job-progress-num .u { font-size: 13px; color: var(--fg-tertiary); margin-left: 4px; }
+
+  /* ─── Loss curve ─── */
+
+  .loss-card {
+    background: var(--bg-panel);
+    border: 1px solid var(--line-subtle);
+    padding: var(--sp-4);
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-3);
+    min-height: 0;
+    overflow: hidden;
+  }
+  .loss-card svg { width: 100%; height: 100%; flex: 1; min-height: 0; }
+  .loss-legend {
+    display: flex;
+    gap: var(--sp-4);
+    font-family: var(--ff-data);
+    font-size: 11px;
+    color: var(--fg-tertiary);
+    letter-spacing: var(--tracking-wide);
+    text-transform: uppercase;
+  }
+  .loss-legend .dot {
+    display: inline-block;
+    width: 8px; height: 8px;
+    margin-right: 6px;
+    vertical-align: middle;
+  }
+
+  /* ─── Job list ─── */
+
+  .job-list { display: flex; flex-direction: column; gap: 1px; background: var(--line-subtle); }
+  .job-item {
+    background: var(--bg-panel);
+    padding: var(--sp-3);
+    cursor: pointer;
+    transition: background 120ms ease;
+    position: relative;
+  }
+  .job-item.active { background: var(--bg-elevated); }
+  .job-item.active::before {
+    content: '';
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    width: 2px;
+    background: var(--accent);
+  }
+  .job-item:hover { background: var(--bg-hover); }
+  .job-item-name {
+    font-family: var(--ff-cn);
+    font-size: 14px;
+    color: var(--fg-primary);
+    font-weight: 500;
+    margin-bottom: 4px;
+  }
+  .job-item-meta {
+    display: flex;
+    justify-content: space-between;
+    font-family: var(--ff-data);
+    font-size: 11px;
+    color: var(--fg-tertiary);
+    letter-spacing: var(--tracking-wide);
+  }
+  .job-item-meta .status-tiny {
+    color: var(--accent);
+    text-transform: uppercase;
+  }
+  .job-item-meta .status-tiny.completed { color: var(--status-running); }
+  .job-item-meta .status-tiny.failed { color: var(--status-alarm); }
+
+  /* ─── Eval & deploy bar ─── */
+
+  .eval-bar {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 1px;
+    background: var(--line-subtle);
+    border: 1px solid var(--line-subtle);
+  }
+  .eval-cell {
+    background: var(--bg-panel);
+    padding: var(--sp-3);
+    display: flex; flex-direction: column; gap: 2px;
+  }
+  .eval-label {
+    font-family: var(--ff-data);
+    font-size: 10px;
+    color: var(--fg-tertiary);
+    letter-spacing: var(--tracking-mega-wide);
+    text-transform: uppercase;
+  }
+  .eval-value {
+    font-family: var(--ff-data);
+    font-size: 24px;
+    color: var(--fg-primary);
+    font-variant-numeric: tabular-nums;
+    letter-spacing: var(--tracking-tight);
+  }
+  .eval-value.accent { color: var(--accent); }
+  .eval-value.warn { color: var(--status-warning); }
+  .eval-sub {
+    font-family: var(--ff-data);
+    font-size: 10px;
+    color: var(--fg-tertiary);
+    letter-spacing: var(--tracking-wide);
+  }
+
+  /* ─── Tier deploy ─── */
+
+  .tier-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: var(--sp-2);
+  }
+  .tier-card {
+    background: var(--bg-elevated);
+    border: 1px solid var(--line-default);
+    padding: var(--sp-3);
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-2);
+    position: relative;
+  }
+  .tier-card.active { border-color: var(--accent); }
+  .tier-card.active::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    box-shadow: inset 0 0 0 1px var(--accent), 0 0 12px var(--accent-glow);
+    pointer-events: none;
+  }
+  .tier-icon {
+    font-family: var(--ff-data);
+    font-size: 20px;
+    color: var(--accent);
+  }
+  .tier-name {
+    font-family: var(--ff-data);
+    font-size: 11px;
+    color: var(--fg-tertiary);
+    letter-spacing: var(--tracking-mega-wide);
+    text-transform: uppercase;
+  }
+  .tier-desc {
+    font-family: var(--ff-cn);
+    font-size: 12px;
+    color: var(--fg-secondary);
+    line-height: 1.5;
+  }
+  .tier-status {
+    font-family: var(--ff-data);
+    font-size: 10px;
+    color: var(--accent);
+    letter-spacing: var(--tracking-wide);
+    text-transform: uppercase;
+  }
+</style>
+</head>
+<body>
+
+<div class="app">
+
+  <!-- TOPBAR -->
+  <header class="topbar">
+    <a href="../design.html" class="brand" style="text-decoration:none">
+      <span class="brand-mark">PRINX</span>
+      <span class="brand-name">HMI / <b>EXT-LINE</b></span>
+    </a>
+    <div class="row" style="margin-left: var(--sp-4);">
+      <span class="line-chip"><span class="line-chip-dot" style="background:var(--fg-tertiary);"></span>5# 胎面 <span style="opacity:.5">TREAD</span></span>
+      <span class="line-chip active"><span class="line-chip-dot"></span>6# 胎侧 <span style="opacity:.7">SIDEWALL</span></span>
+    </div>
+    <div class="topbar-spacer"></div>
+    <div class="topbar-meta">
+      <div class="topbar-meta-item">
+        <span class="topbar-meta-label">SHIFT</span>
+        <span class="topbar-meta-value">B 班</span>
+      </div>
+      <div class="topbar-meta-item">
+        <span class="topbar-meta-label">PINN</span>
+        <span class="badge badge-running">在线</span>
+      </div>
+      <div class="clock" id="clock">14:32:08</div>
+      <div class="user-chip">
+        <div class="user-avatar">ZF</div>
+        <div class="user-chip-text"><b>张峰</b><span>LV3</span></div>
+      </div>
+    </div>
+  </header>
+
+  <!-- SIDENAV -->
+  <nav class="sidenav">
+    <a href="overview.html" class="nav-item">
+      <svg viewBox="0 0 24 24" fill="none"><path d="M3 12 L12 4 L21 12 M5 10 V20 H19 V10" stroke="currentColor" stroke-width="1.5"/></svg>
+      <span class="nav-item-label">主页</span>
+    </a>
+    <a href="recipe.html" class="nav-item">
+      <svg viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="7" height="7" stroke="currentColor" stroke-width="1.5"/><rect x="14" y="3" width="7" height="7" stroke="currentColor" stroke-width="1.5"/><rect x="3" y="14" width="7" height="7" stroke="currentColor" stroke-width="1.5"/><rect x="14" y="14" width="7" height="7" stroke="currentColor" stroke-width="1.5"/></svg>
+      <span class="nav-item-label">配方</span>
+    </a>
+    <a href="control.html" class="nav-item">
+      <svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.5"/><path d="M12 2 V5 M12 19 V22 M2 12 H5 M19 12 H22" stroke="currentColor" stroke-width="1.5"/></svg>
+      <span class="nav-item-label">闭环</span>
+    </a>
+    <a href="alarm.html" class="nav-item">
+      <svg viewBox="0 0 24 24" fill="none"><path d="M12 2 L2 22 H22 L12 2 Z" stroke="currentColor" stroke-width="1.5"/><path d="M12 9 V14 M12 17 V18" stroke="currentColor" stroke-width="1.5"/></svg>
+      <span class="nav-item-label">报警</span>
+    </a>
+    <a href="trend.html" class="nav-item">
+      <svg viewBox="0 0 24 24" fill="none"><path d="M3 17 L9 11 L13 15 L21 7" stroke="currentColor" stroke-width="1.5"/><path d="M15 7 H21 V13" stroke="currentColor" stroke-width="1.5"/></svg>
+      <span class="nav-item-label">趋势</span>
+    </a>
+    <a href="temperature.html" class="nav-item">
+      <svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.5"/><path d="M12 2 V5 M12 19 V22 M22 12 H19 M5 12 H2 M19.07 4.93 L16.95 7.05 M7.05 16.95 L4.93 19.07 M19.07 19.07 L16.95 16.95 M7.05 7.05 L4.93 4.93" stroke="currentColor" stroke-width="1.5"/></svg>
+      <span class="nav-item-label">温控</span>
+    </a>
+    <a href="process.html" class="nav-item">
+      <svg viewBox="0 0 24 24" fill="none"><path d="M3 12 H8 L10 6 L14 18 L16 12 H21" stroke="currentColor" stroke-width="1.5"/></svg>
+      <span class="nav-item-label">工艺</span>
+    </a>
+    <a href="mes.html" class="nav-item">
+      <svg viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="18" height="18" stroke="currentColor" stroke-width="1.5"/><path d="M3 9 H21 M9 3 V21" stroke="currentColor" stroke-width="1.5"/></svg>
+      <span class="nav-item-label">MES</span>
+    </a>
+    <div class="nav-item active">
+      <svg viewBox="0 0 24 24" fill="none">
+        <circle cx="6" cy="6" r="2" stroke="currentColor" stroke-width="1.5"/>
+        <circle cx="18" cy="6" r="2" stroke="currentColor" stroke-width="1.5"/>
+        <circle cx="12" cy="14" r="2" stroke="currentColor" stroke-width="1.5"/>
+        <circle cx="6" cy="20" r="2" stroke="currentColor" stroke-width="1.5"/>
+        <circle cx="18" cy="20" r="2" stroke="currentColor" stroke-width="1.5"/>
+        <path d="M7.5 7.5 L10.5 12.5 M16.5 7.5 L13.5 12.5 M10.5 15.5 L7.5 18.5 M13.5 15.5 L16.5 18.5" stroke="currentColor" stroke-width="1.5"/>
+      </svg>
+      <span class="nav-item-label">PINN</span>
+    </div>
+    <a href="maintenance.html" class="nav-item">
+      <svg viewBox="0 0 24 24" fill="none"><path d="M14 7 L17 4 L20 7 L17 10 Z" stroke="currentColor" stroke-width="1.5"/><path d="M14 7 L4 17 V20 H7 L17 10" stroke="currentColor" stroke-width="1.5"/></svg>
+      <span class="nav-item-label">维护</span>
+    </a>
+    <a href="report.html" class="nav-item">
+      <svg viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="18" height="18" stroke="currentColor" stroke-width="1.5"/><path d="M7 9 H17 M7 13 H17 M7 17 H13" stroke="currentColor" stroke-width="1.5"/></svg>
+      <span class="nav-item-label">报表</span>
+    </a>
+  </nav>
+
+  <!-- CANVAS -->
+  <main class="canvas">
+    <div class="canvas-header">
+      <div class="canvas-title">
+        <div class="canvas-title-eyebrow">P-10 · PINN TRAINING · 模型训练与部署</div>
+        <div class="canvas-title-text">PINN 训练 · 6#胎侧 · PS1226</div>
+      </div>
+      <div class="canvas-actions">
+        <button class="btn btn-ghost" id="btn-train-refresh"><span style="font-family:var(--ff-data);font-size:11px;letter-spacing:var(--tracking-wide);text-transform:uppercase;color:var(--fg-tertiary)">↻ 刷新</span></button>
+        <button class="btn" id="btn-train-registry">查看模型注册中心</button>
+        <button class="btn btn-primary" id="btn-train-new">+ 新建训练任务</button>
+      </div>
+    </div>
+
+    <div class="train-canvas">
+
+      <!-- LEFT COLUMN -->
+      <div class="left-col">
+
+        <!-- Step 1: 数据 -->
+        <div class="panel">
+          <div class="panel-head">
+            <h3>① 数据集</h3>
+            <span class="meta">DATA</span>
+          </div>
+          <div class="panel-body">
+            <div class="form-row">
+              <span class="form-label">数据时段 <span class="hint">最近 7 天</span></span>
+              <div class="pill-group">
+                <span class="pill">24h</span>
+                <span class="pill">3 天</span>
+                <span class="pill active">7 天</span>
+                <span class="pill">30 天</span>
+                <span class="pill">自定义</span>
+              </div>
+            </div>
+            <div class="form-row">
+              <span class="form-label">规格 SPEC</span>
+              <div class="pill-group">
+                <span class="pill active">PS1226</span>
+                <span class="pill">PS1108</span>
+                <span class="pill">PS0998</span>
+                <span class="pill">全部</span>
+              </div>
+            </div>
+            <div class="form-row">
+              <span class="form-label">数据集名称</span>
+              <input class="form-input" type="text" value="6#胎侧_最近7天_PS1226"/>
+            </div>
+            <div class="data-grid cols-3" style="margin-top:0">
+              <div class="data-cell" style="min-height:64px;padding:var(--sp-2)">
+                <div class="data-cell-label"><span class="data-cell-id">SAMPLES</span>样本数</div>
+                <div class="data-cell-value" style="font-size:22px">604.8K</div>
+              </div>
+              <div class="data-cell" style="min-height:64px;padding:var(--sp-2)">
+                <div class="data-cell-label"><span class="data-cell-id">FEATURES</span>特征维度</div>
+                <div class="data-cell-value" style="font-size:22px">14</div>
+              </div>
+              <div class="data-cell" style="min-height:64px;padding:var(--sp-2)">
+                <div class="data-cell-label"><span class="data-cell-id">SIZE</span>大小</div>
+                <div class="data-cell-value" style="font-size:22px">68 <span class="u">MB</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Step 2: 模型 -->
+        <div class="panel">
+          <div class="panel-head">
+            <h3>② 模型</h3>
+            <span class="meta">ARCHITECTURE</span>
+          </div>
+          <div class="panel-body">
+            <div class="form-row">
+              <span class="form-label">模型用途</span>
+              <div class="pill-group">
+                <span class="pill active">质量预测</span>
+                <span class="pill">异常检测</span>
+                <span class="pill">配方反推</span>
+              </div>
+            </div>
+            <div class="form-row">
+              <span class="form-label">网络结构</span>
+              <div class="pill-group">
+                <span class="pill">MLP</span>
+                <span class="pill">LSTM</span>
+                <span class="pill">Transformer</span>
+                <span class="pill active">PINN-PI</span>
+              </div>
+            </div>
+            <div class="form-row-grid">
+              <div class="form-row" style="margin:0">
+                <span class="form-label">EPOCHS</span>
+                <input class="form-input text-mono" type="number" value="200"/>
+              </div>
+              <div class="form-row" style="margin:0">
+                <span class="form-label">BATCH</span>
+                <input class="form-input text-mono" type="number" value="64"/>
+              </div>
+            </div>
+            <div class="form-row-grid" style="margin-top:var(--sp-3)">
+              <div class="form-row" style="margin:0">
+                <span class="form-label">LR</span>
+                <input class="form-input text-mono" type="text" value="1e-3"/>
+              </div>
+              <div class="form-row" style="margin:0">
+                <span class="form-label">物理 loss 权重</span>
+                <input class="form-input text-mono" type="text" value="0.30"/>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Step 3: 算力 -->
+        <div class="panel">
+          <div class="panel-head">
+            <h3>③ 算力</h3>
+            <span class="meta">COMPUTE</span>
+          </div>
+          <div class="panel-body">
+            <div class="form-row">
+              <span class="form-label">部署位置</span>
+              <div class="pill-group">
+                <span class="pill active">☁ 云端 GPU</span>
+                <span class="pill">⛁ Edge CPU</span>
+                <span class="pill">⛁ Edge GPU</span>
+              </div>
+            </div>
+            <div style="font-family:var(--ff-cn);font-size:13px;color:var(--fg-secondary);line-height:1.6;margin-top:var(--sp-3)">
+              预计耗时：<b style="color:var(--accent)">2 小时 12 分</b><br>
+              排队中：1 个任务在前
+            </div>
+            <button class="btn btn-major btn-primary" style="width:100%;margin-top:var(--sp-3)">启动训练</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- RIGHT (CENTER+RIGHT) -->
+      <div class="center-col">
+
+        <!-- Header / Status -->
+        <div class="job-header">
+          <div>
+            <div class="job-id">JOB-2026-04-29-A02 · PS1226 半钢胎侧</div>
+            <div class="job-name">基线模型 · PINN-PI · v1.2 训练</div>
+          </div>
+          <span class="job-status-pill training">● 训练中</span>
+          <div style="text-align:right">
+            <div class="job-progress-num">142<span class="u">/200 EPOCH</span></div>
+            <div style="font-family:var(--ff-data);font-size:11px;color:var(--fg-tertiary);letter-spacing:var(--tracking-wide);text-transform:uppercase;margin-top:2px">
+              已用 28:42 · 剩余 ≈ 11:58
+            </div>
+          </div>
+          <div style="display:flex;gap:var(--sp-2)">
+            <button class="btn">查看日志</button>
+            <button class="btn">取消</button>
+          </div>
+        </div>
+
+        <!-- Loss curve -->
+        <div class="loss-card">
+          <div style="display:flex;justify-content:space-between;align-items:baseline">
+            <div style="font-family:var(--ff-cn);font-size:16px;font-weight:500">训练曲线 · Train + Val + Physics Residual</div>
+            <div class="loss-legend">
+              <span><span class="dot" style="background:#00E5FF"></span>Train Loss</span>
+              <span><span class="dot" style="background:#FFB300"></span>Val Loss</span>
+              <span><span class="dot" style="background:#B39DDB"></span>Physics Residual</span>
+            </div>
+          </div>
+          <svg viewBox="0 0 800 300" preserveAspectRatio="none">
+            <defs>
+              <linearGradient id="trainfill" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="#00E5FF" stop-opacity="0.25"/>
+                <stop offset="100%" stop-color="#00E5FF" stop-opacity="0"/>
+              </linearGradient>
+            </defs>
+            <!-- Grid -->
+            <g stroke="#1C232E" stroke-width="0.5">
+              <line x1="0" y1="60" x2="800" y2="60"/>
+              <line x1="0" y1="120" x2="800" y2="120"/>
+              <line x1="0" y1="180" x2="800" y2="180"/>
+              <line x1="0" y1="240" x2="800" y2="240"/>
+            </g>
+            <!-- Y axis labels -->
+            <g font-family="Azeret Mono" font-size="10" fill="#718096">
+              <text x="4" y="24">1.5</text>
+              <text x="4" y="84">1.0</text>
+              <text x="4" y="144">0.5</text>
+              <text x="4" y="204">0.2</text>
+              <text x="4" y="264">0.05</text>
+            </g>
+
+            <!-- Train Loss area + line (epoch 1→142) -->
+            <polygon fill="url(#trainfill)"
+              points="40,40 110,90 180,140 250,180 320,210 390,235 460,250 530,260 600,265 600,300 40,300"/>
+            <polyline fill="none" stroke="#00E5FF" stroke-width="2"
+              points="40,40 110,90 180,140 250,180 320,210 390,235 460,250 530,260 600,265"/>
+
+            <!-- Val Loss line -->
+            <polyline fill="none" stroke="#FFB300" stroke-width="1.5"
+              points="40,32 110,86 180,134 250,174 320,205 390,228 460,243 530,254 600,260"/>
+
+            <!-- Physics residual -->
+            <polyline fill="none" stroke="#B39DDB" stroke-width="1.5"
+              points="40,90 110,140 180,180 250,210 320,232 390,248 460,260 530,266 600,270"/>
+
+            <!-- Current epoch marker -->
+            <line x1="600" y1="0" x2="600" y2="280" stroke="#00E5FF" stroke-width="0.8" stroke-dasharray="3 3"/>
+            <circle cx="600" cy="265" r="4" fill="#00E5FF"/>
+            <text x="610" y="20" font-family="Azeret Mono" font-size="11" fill="#00E5FF" letter-spacing="0.06em">EPOCH 142</text>
+            <text x="610" y="34" font-family="Azeret Mono" font-size="10" fill="#A0AEC0">train 0.041</text>
+            <text x="610" y="46" font-family="Azeret Mono" font-size="10" fill="#A0AEC0">val 0.052</text>
+
+            <!-- Future epochs (lighter) -->
+            <polyline fill="none" stroke="#00E5FF" stroke-width="2" stroke-dasharray="2 4" opacity="0.3"
+              points="600,265 670,266 740,267"/>
+            <polyline fill="none" stroke="#FFB300" stroke-width="1.5" stroke-dasharray="2 4" opacity="0.3"
+              points="600,260 670,262 740,263"/>
+
+            <!-- X axis -->
+            <g font-family="Azeret Mono" font-size="10" fill="#718096" text-anchor="middle">
+              <text x="40" y="295">0</text>
+              <text x="180" y="295">50</text>
+              <text x="320" y="295">100</text>
+              <text x="460" y="295">150</text>
+              <text x="600" y="295">142 ↑</text>
+              <text x="740" y="295">200</text>
+            </g>
+          </svg>
+        </div>
+
+        <!-- Eval bar -->
+        <div class="eval-bar">
+          <div class="eval-cell">
+            <span class="eval-label">MAE</span>
+            <span class="eval-value">0.024</span>
+            <span class="eval-sub">↓ 优于 v1.1（0.031）</span>
+          </div>
+          <div class="eval-cell">
+            <span class="eval-label">RMSE</span>
+            <span class="eval-value">0.038</span>
+            <span class="eval-sub">↓ 优于 v1.1（0.047）</span>
+          </div>
+          <div class="eval-cell">
+            <span class="eval-label">R²</span>
+            <span class="eval-value accent">0.962</span>
+            <span class="eval-sub">↑ 优于 v1.1（0.948）</span>
+          </div>
+          <div class="eval-cell">
+            <span class="eval-label">PHYSICS RES.</span>
+            <span class="eval-value">0.011</span>
+            <span class="eval-sub">PDE 残差收敛</span>
+          </div>
+          <div class="eval-cell">
+            <span class="eval-label">CONFIDENCE</span>
+            <span class="eval-value accent">87%</span>
+            <span class="eval-sub">在线推理置信度</span>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+
+  </main>
+
+  <!-- KPI BAR -->
+  <aside class="kpibar">
+    <div class="kpibar-section">
+      <div class="kpibar-section-label">
+        <span>历史任务 / JOB HISTORY</span>
+        <span id="train-job-count">— ITEMS</span>
+      </div>
+      <div class="job-list" id="train-job-list">
+        <div class="job-item">
+          <div class="job-item-name" style="opacity:.6">加载中...</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="kpibar-section">
+      <div class="kpibar-section-label">
+        <span>影子模式 / SHADOW</span>
+      </div>
+      <div id="shadow-runs" style="font-family:var(--ff-data);font-size:11px;color:var(--fg-tertiary);padding:var(--sp-3)">无影子模型</div>
+    </div>
+
+    <div class="kpibar-section">
+      <div class="kpibar-section-label">
+        <span>已部署模型 / DEPLOYED</span>
+      </div>
+      <div class="kpi" style="padding:var(--sp-3)">
+        <div style="display:flex;align-items:baseline;justify-content:space-between">
+          <div>
+            <div style="font-family:var(--ff-data);font-size:11px;color:var(--accent);letter-spacing:var(--tracking-wide)">QUALITY · v1.0</div>
+            <div style="font-family:var(--ff-cn);font-size:14px;color:var(--fg-primary);margin-top:2px">质量预测主用模型</div>
+          </div>
+          <span class="badge badge-running">IN-USE</span>
+        </div>
+        <div style="font-family:var(--ff-data);font-size:11px;color:var(--fg-tertiary);letter-spacing:var(--tracking-wide);margin-top:8px">
+          上线 · 04-15 11:30 · 王厂长
+        </div>
+      </div>
+      <div class="kpi" style="padding:var(--sp-3)">
+        <div style="display:flex;align-items:baseline;justify-content:space-between">
+          <div>
+            <div style="font-family:var(--ff-data);font-size:11px;color:var(--accent);letter-spacing:var(--tracking-wide)">ANOMALY · v0.8</div>
+            <div style="font-family:var(--ff-cn);font-size:14px;color:var(--fg-primary);margin-top:2px">异常检测</div>
+          </div>
+          <span class="badge badge-running">IN-USE</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tier deploy -->
+    <div class="kpibar-section">
+      <div class="kpibar-section-label">
+        <span>云边端部署 / TIER STATUS</span>
+      </div>
+      <div class="tier-grid">
+        <div class="tier-card active">
+          <div class="tier-icon">☁</div>
+          <div class="tier-name">CLOUD</div>
+          <div class="tier-desc">训练 + 注册</div>
+          <div class="tier-status">● 在线</div>
+        </div>
+        <div class="tier-card active">
+          <div class="tier-icon">⛁</div>
+          <div class="tier-name">EDGE</div>
+          <div class="tier-desc">推理 + 控制</div>
+          <div class="tier-status">● 在线</div>
+        </div>
+        <div class="tier-card active">
+          <div class="tier-icon">📟</div>
+          <div class="tier-name">DEVICE</div>
+          <div class="tier-desc">HMI</div>
+          <div class="tier-status">● 在线</div>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ACTION BAR -->
+  <footer class="actionbar">
+    <div class="alarm-strip">
+      <div class="alarm-marker">
+        <span class="alarm-marker-dot" style="background:var(--accent);box-shadow:0 0 0 4px var(--accent-glow);"></span>
+        <span>PINN</span>
+      </div>
+      <div class="alarm-strip-feed">
+        <span class="ts">14:30:52</span>
+        <span class="lvl lvl-m"></span>
+        <span>v1.2 训练进度 71% · MAE 已优于 v1.1 · 预计 25 分钟后完成 → 进入影子模式</span>
+      </div>
+    </div>
+    <div class="action-buttons">
+      <button class="btn btn-major">影子模式部署</button>
+      <button class="btn btn-major btn-primary">训练完成后自动部署</button>
+    </div>
+    <div style="padding: 0;">
+      <button class="btn-estop">E-STOP<br>急停</button>
+    </div>
+  </footer>
+
+</div>
+
+<script src="../fit.js?v=15"></script>
+<script>
+  function tick() {
+    const d = new Date();
+    document.getElementById('clock').textContent =
+      [d.getHours(), d.getMinutes(), d.getSeconds()].map(n => String(n).padStart(2,'0')).join(':');
+  }
+  tick(); setInterval(tick, 1000);
+</script>
+<script src="../demo-mock.js"></script>
+<script src="../live.js"></script>
+<script>
+(function () {
+  function fmtTs(s) { try { return new Date(s).toLocaleString().slice(5); } catch { return s; } }
+
+  function escape(s) {
+    const div = document.createElement('div');
+    div.textContent = String(s);
+    return div.innerHTML;
+  }
+
+  function statusClass(state) {
+    if (state === 'completed') return 'completed';
+    if (state === 'failed' || state === 'cancelled') return 'failed';
+    return '';
+  }
+
+  function statusLabel(state, j) {
+    if (state === 'running') {
+      const total = j.config?.epochs || 1;
+      const cur = j.epochs_completed || 0;
+      return `RUNNING ${Math.round((cur / total) * 100)}%`;
+    }
+    return state.toUpperCase();
+  }
+
+  async function loadJobs() {
+    try {
+      const jobs = await PRINX.api.get('/api/training/jobs');
+      document.getElementById('train-job-count').textContent = `${jobs.length} ITEMS`;
+      const list = document.getElementById('train-job-list');
+      if (!jobs.length) { list.innerHTML = '<div class="job-item"><div class="job-item-name" style="opacity:.6">暂无训练任务</div></div>'; return; }
+      list.innerHTML = jobs.slice(0, 8).map((j) => `
+        <div class="job-item ${j.state === 'running' ? 'active' : ''}" data-job-id="${escape(j.id)}">
+          <div class="job-item-name">${escape(j.kind || 'quality')} · ${escape(j.id.slice(0, 12))}</div>
+          <div class="job-item-meta"><span>${escape(fmtTs(j.created_at))}</span><span class="status-tiny ${statusClass(j.state)}">${statusLabel(j.state, j)}</span></div>
+        </div>
+      `).join('');
+    } catch (e) {
+      console.warn('jobs load failed', e);
+      document.getElementById('train-job-list').innerHTML = `<div class="job-item"><div class="job-item-name" style="color:#ff8080">加载失败：${escape(e.message)}</div></div>`;
+    }
+  }
+
+  async function loadModels() {
+    try {
+      const models = await PRINX.api.get('/api/training/models');
+      const shadow = (models || []).filter((m) => m.status === 'shadow');
+      const root = document.getElementById('shadow-runs');
+      if (!shadow.length) { root.textContent = '无影子模型在运行'; return; }
+      root.innerHTML = shadow.map((m) => `
+        <div style="border-left:3px solid var(--accent);padding:6px 10px;margin-bottom:6px;background:rgba(255,255,255,.03)">
+          <div style="color:var(--fg-primary);font-size:12px">${escape(m.id || m.version)}</div>
+          <div style="margin-top:2px">${escape(m.kind || 'quality')} · 部署 ${m.deployed_at ? fmtTs(m.deployed_at) : '—'}</div>
+          ${PRINX.user()?.level >= 4 ? `<button class="btn" data-promote="${escape(m.id)}" style="margin-top:4px;font-size:11px">升 in_use</button>` : ''}
+        </div>
+      `).join('');
+      root.querySelectorAll('[data-promote]').forEach((btn) => {
+        btn.addEventListener('click', async () => {
+          if (!confirm(`升 ${btn.dataset.promote} 到 IN_USE？`)) return;
+          try {
+            await PRINX.api.post(`/api/training/models/${btn.dataset.promote}/deploy`, { mode: 'in_use', operator: PRINX.user().name });
+            alert('部署成功');
+            loadModels();
+          } catch (e) { alert('部署失败: ' + e.message); }
+        });
+      });
+    } catch (e) { console.warn('models load failed', e); }
+  }
+
+  document.getElementById('btn-train-refresh')?.addEventListener('click', () => { loadJobs(); loadModels(); });
+
+  document.getElementById('btn-train-new')?.addEventListener('click', async () => {
+    const u = PRINX.user();
+    if (!u) return alert('请先登录');
+    if (u.level < 3) return alert('训练任务需要 LV3+');
+    const datasetSpec = prompt('数据集 spec（如 PS1226）', 'PS1226');
+    if (!datasetSpec) return;
+    try {
+      // Create dataset first
+      const now = new Date();
+      const from = new Date(now.getTime() - 7 * 86400000).toISOString();
+      const to = now.toISOString();
+      const ds = await PRINX.api.post('/api/training/datasets', {
+        line_id: '6-sidewall-line', spec: datasetSpec, from_ts: from, to_ts: to,
+      }).catch(() => null);
+      const dsId = ds?.id;
+      const job = await PRINX.api.post('/api/training/jobs', {
+        dataset_id: dsId, kind: 'quality', epochs: 100, operator: u.name,
+      });
+      alert(`训练任务已创建：${job.id}`);
+      loadJobs();
+    } catch (e) { alert('创建失败: ' + e.message); }
+  });
+
+  document.getElementById('btn-train-registry')?.addEventListener('click', () => loadModels());
+
+  // Initial + periodic refresh
+  loadJobs(); loadModels();
+  setInterval(() => { loadJobs(); }, 5000);
+  setInterval(() => { loadModels(); }, 30000);
+})();
+</script>
+</body>
+</html>
