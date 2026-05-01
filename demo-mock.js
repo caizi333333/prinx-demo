@@ -25,7 +25,7 @@
   const params = new URLSearchParams(location.search);
   const force = params.get('demo') === '1';
   const skip = params.get('demo') === '0';
-  const knownDemoHost = h === 'sunyancai.top'
+  const knownDemoHost = h === 'sunyancai.top' || h === 'www.sunyancai.top'
     || h.endsWith('.pages.dev')
     || h.endsWith('.workers.dev')
     || h === 'localhost' || h === '127.0.0.1' || h === '';
