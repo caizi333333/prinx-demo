@@ -911,41 +911,43 @@
 
         // ─── Scenario presets ─────────────────────────────────────────
         case 'scn-normal': {
-          // restore SETPOINTS to baseline & clear extras
           alarmsActive.length = 0;
           if (pinnSource !== 'pinn') {
             pinnSource = 'pinn';
             wsBroadcast({ type: 'pinn_status_change', data: { state: 'pinn', reason: '场景: 正常生产' } });
           }
           if (estopActive) { estopActive = false; }
-          // restore die temps
-          for (const t of ['TT-DIE-T.PV','TT-DIE-TM.PV','TT-DIE-M.PV','TT-DIE-BM.PV','TT-DIE-B.PV']) SETPOINTS[t] = 75.0;
-          for (const t of ['PT-150T.PV','PT-150M.PV','PT-150B.PV','PT-90.PV']) SETPOINTS[t] = [18.6,18.2,17.4,20.1][['PT-150T.PV','PT-150M.PV','PT-150B.PV','PT-90.PV'].indexOf(t)];
+          // Restore upstream SP to baselines (PVs auto-track)
+          SETPOINTS['EXT-90.SPEED.SP']=7.6; SETPOINTS['EXT-T.SPEED.SP']=5.1;
+          SETPOINTS['EXT-M.SPEED.SP']=5.1; SETPOINTS['EXT-B.SPEED.SP']=4.2;
+          SETPOINTS['TAKEUP.SPEED.SP']=5.0;
+          ['TT-DIE-T.SP','TT-DIE-TM.SP','TT-DIE-M.SP','TT-DIE-BM.SP','TT-DIE-B.SP'].forEach(t => SETPOINTS[t]=75.0);
+          SETPOINTS['SCL-FRONT.SP']=0.750; SETPOINTS['SCL-REAR.SP']=0.750;
+          SETPOINTS['WIDTH-REAR.SP']=165.0;
+          for (let i = 1; i <= 9; i += 1) SETPOINTS[`FLT-${i}.PRESSURE`] = [0.30, 0.10, 1.00, 0.30, 1.00, 2.00, 1.20, 0.80, 0.90][i - 1];
           pulseToast('场景: 正常生产 已恢复', 'ok');
           break;
         }
         case 'scn-overload': {
-          // ramp pressures up
-          SETPOINTS['PT-150T.PV'] = 22.5;
-          SETPOINTS['PT-150M.PV'] = 22.0;
-          SETPOINTS['PT-150B.PV'] = 21.5;
-          SETPOINTS['PT-90.PV'] = 24.0;
-          for (let i = 1; i <= 9; i += 1) SETPOINTS[`FLT-${i}.PRESSURE`] = Math.min(2.7, (SETPOINTS[`FLT-${i}.PRESSURE`] || 1) * 1.4);
-          pulseToast('场景: 满负荷 — 压力上调 ~20%', 'warn');
+          // Drive UP via SPs — pressures derive from speed/temp coupling
+          SETPOINTS['EXT-90.SPEED.SP'] = 9.2;     // +21%
+          SETPOINTS['EXT-T.SPEED.SP']  = 6.3;
+          SETPOINTS['EXT-M.SPEED.SP']  = 6.3;
+          SETPOINTS['EXT-B.SPEED.SP']  = 5.2;
+          SETPOINTS['TAKEUP.SPEED.SP'] = 6.0;
+          // floater pressures up
+          for (let i = 1; i <= 9; i += 1) SETPOINTS[`FLT-${i}.PRESSURE`] = Math.min(2.7, ([0.30,0.10,1.00,0.30,1.00,2.00,1.20,0.80,0.90][i-1]) * 1.5);
+          pulseToast('场景: 满负荷生产 — 4 挤出机速度 +20% → 压力/电流将随动上升', 'warn');
           break;
         }
         case 'scn-drift': {
-          // die temps drift apart (asymmetry)
-          SETPOINTS['TT-DIE-T.PV']  = 78.5;
-          SETPOINTS['TT-DIE-TM.PV'] = 76.0;
-          SETPOINTS['TT-DIE-M.PV']  = 75.0;
-          SETPOINTS['TT-DIE-BM.PV'] = 72.5;
-          SETPOINTS['TT-DIE-B.PV']  = 70.0;
-          // alarm
-          const a = makeAlarm('TT-DIE-T.PV', 2, 'process', '上模温度漂移 +3.5°C 持续 2 分钟', 'DIE-HEAD');
-          alarmsActive.push(a);
-          wsBroadcast({ type: 'alarm_new', data: a });
-          pulseToast('场景: 工艺漂移 — 模头温度对称性失调', 'warn');
+          // Asymmetric die temps via SP — PVs track with thermal lag
+          SETPOINTS['TT-DIE-T.SP']  = 79.0;
+          SETPOINTS['TT-DIE-TM.SP'] = 76.5;
+          SETPOINTS['TT-DIE-M.SP']  = 75.0;
+          SETPOINTS['TT-DIE-BM.SP'] = 72.5;
+          SETPOINTS['TT-DIE-B.SP']  = 70.0;
+          pulseToast('场景: 工艺漂移 — 模头 5 温区 SP 失对称，PV 缓慢追随，闸 2 告警将自动触发', 'warn');
           break;
         }
         case 'scn-flood': {
