@@ -219,26 +219,24 @@
     const tags = tagsCsv.split(',').map(s => s.trim());
     const colors = (svg.dataset.colors || '').split(',').map(s => s.trim());
     const multiAxis = svg.dataset.multiAxis === '1';
-    const w = 800, h = 200, padL = 36, padR = 8, padT = 12, padB = 22;
+    const w = 800, h = 200, padL = 32, padR = 14, padT = 8, padB = 18;
     const now = Date.now();
     const winMs = trendWindowSec * 1000;
     const fromMs = now - winMs;
 
-    // Collect series + global min/max
     const seriesList = tags.map((tag, i) => {
       const arr = (sigHistory.get(tag) || []).filter(p => p.ts >= fromMs);
       return { tag, color: colors[i] || '#7cf', points: arr };
     });
     if (!seriesList.some(s => s.points.length >= 2)) {
-      svg.innerHTML = `<rect width="${w}" height="${h}" fill="#0a141c"/><text x="${w/2}" y="${h/2}" fill="#456" font-family="monospace" font-size="11" text-anchor="middle">收集数据中… (需 ≥2 个数据点 / 信号)</text>`;
+      svg.innerHTML = `<rect width="${w}" height="${h}" fill="#050b12"/><text x="${w/2}" y="${h/2}" fill="#3a4a5a" font-family="var(--ff-data,monospace)" font-size="11" text-anchor="middle" letter-spacing="0.05em">SAMPLING…  收集数据中</text>`;
       return;
     }
 
-    // Single y-axis: use global min/max across all series
     let yMin = Infinity, yMax = -Infinity;
     if (!multiAxis) {
       for (const s of seriesList) for (const p of s.points) { if (p.value < yMin) yMin = p.value; if (p.value > yMax) yMax = p.value; }
-      const yPad = (yMax - yMin) * 0.12 || 0.5;
+      const yPad = (yMax - yMin) * 0.18 || 0.5;
       yMin -= yPad; yMax += yPad;
     }
 
@@ -249,42 +247,48 @@
       if (multiAxis) {
         const arr = seriesList[sIdx].points;
         lo = Math.min(...arr.map(p => p.value)); hi = Math.max(...arr.map(p => p.value));
-        const pad = (hi - lo) * 0.12 || 0.5; lo -= pad; hi += pad;
+        const pad = (hi - lo) * 0.2 || 0.5; lo -= pad; hi += pad;
       } else { lo = yMin; hi = yMax; }
       return h - padB - ((value - lo) / (hi - lo)) * innerH;
     }
 
-    let parts = `<rect width="${w}" height="${h}" fill="#0a141c"/>`;
-    // grid lines
-    for (let i = 0; i <= 4; i++) {
+    let parts = `<rect width="${w}" height="${h}" fill="#050b12"/>`;
+    // soft horizontal grid (4 lines)
+    for (let i = 1; i < 4; i++) {
       const ly = padT + (innerH / 4) * i;
-      parts += `<line x1="${padL}" y1="${ly}" x2="${w-padR}" y2="${ly}" stroke="#1a2a3a" stroke-width="0.5"/>`;
+      parts += `<line x1="${padL}" y1="${ly}" x2="${w-padR}" y2="${ly}" stroke="#0f1c2a" stroke-width="0.6"/>`;
     }
-    // y-axis labels (single axis only)
+    // y-axis (single axis)
     if (!multiAxis) {
+      const decimals = (yMax - yMin) < 5 ? 2 : (yMax - yMin) < 50 ? 1 : 0;
       for (let i = 0; i <= 4; i++) {
         const v = yMax - ((yMax - yMin) / 4) * i;
         const ly = padT + (innerH / 4) * i;
-        parts += `<text x="${padL-4}" y="${ly+3}" fill="#456" font-size="9" text-anchor="end" font-family="monospace">${v.toFixed(v > 100 ? 0 : 1)}</text>`;
+        parts += `<text x="${padL-5}" y="${ly+3}" fill="#4a5a6a" font-size="9" text-anchor="end" font-family="var(--ff-data,monospace)">${v.toFixed(decimals)}</text>`;
       }
     }
-    // time axis ticks (4)
+    // x-axis ticks (5)
     for (let i = 0; i <= 4; i++) {
       const x = padL + (innerW / 4) * i;
       const tsHere = fromMs + (winMs / 4) * i;
       const secAgo = Math.round((now - tsHere) / 1000);
-      const lbl = secAgo === 0 ? '现在' : (secAgo >= 60 ? `-${Math.round(secAgo/60)}m` : `-${secAgo}s`);
-      parts += `<text x="${x}" y="${h-6}" fill="#456" font-size="9" text-anchor="middle" font-family="monospace">${lbl}</text>`;
-      parts += `<line x1="${x}" y1="${h-padB}" x2="${x}" y2="${h-padB+3}" stroke="#456" stroke-width="0.5"/>`;
+      const lbl = secAgo <= 1 ? 'now' : (secAgo >= 60 ? `-${Math.round(secAgo/60)}m` : `-${secAgo}s`);
+      parts += `<text x="${x}" y="${h-5}" fill="#4a5a6a" font-size="9" text-anchor="middle" font-family="var(--ff-data,monospace)">${lbl}</text>`;
     }
-    // each series polyline
+    // axis lines
+    parts += `<line x1="${padL}" y1="${padT}" x2="${padL}" y2="${h-padB}" stroke="#1a2a3a" stroke-width="0.8"/>`;
+    parts += `<line x1="${padL}" y1="${h-padB}" x2="${w-padR}" y2="${h-padB}" stroke="#1a2a3a" stroke-width="0.8"/>`;
+
+    // series polylines
     for (let i = 0; i < seriesList.length; i++) {
       const s = seriesList[i]; if (s.points.length < 2) continue;
       const pts = s.points.map(p => `${xAt(p.ts).toFixed(1)},${yAtFor(p.value, i).toFixed(1)}`).join(' ');
-      parts += `<polyline points="${pts}" fill="none" stroke="${s.color}" stroke-width="1.4" stroke-linejoin="round" opacity="0.95"/>`;
-      // Last value dot
+      parts += `<polyline points="${pts}" fill="none" stroke="${s.color}" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/>`;
       const last = s.points[s.points.length - 1];
-      parts += `<circle cx="${xAt(last.ts).toFixed(1)}" cy="${yAtFor(last.value, i).toFixed(1)}" r="2.2" fill="${s.color}"/>`;
+      const lx = xAt(last.ts).toFixed(1), ly = yAtFor(last.value, i).toFixed(1);
+      // glow + tiny dot
+      parts += `<circle cx="${lx}" cy="${ly}" r="3" fill="${s.color}" opacity="0.18"/>`;
+      parts += `<circle cx="${lx}" cy="${ly}" r="1.6" fill="${s.color}"/>`;
     }
     svg.innerHTML = parts;
   }
