@@ -279,6 +279,75 @@
     }
   }
 
+  // ─── Industrial status bar (sitewide bottom strip) ─────────────────
+
+  const statusState = {
+    oee: 87.3, activeAlarms: 0, critAlarms: 0,
+    pinnSource: 'pinn', cyclesPerHour: 0,
+    workorderId: '—', workorderQty: 0, workorderPlan: 1000,
+    online: true, lastTickAt: Date.now(),
+  };
+  let cycleTimes = [];
+
+  function renderStatusBar() {
+    if (location.pathname.endsWith('login.html')) return;
+    if (document.getElementById('prinx-status-bar')) return;
+    const bar = document.createElement('div');
+    bar.id = 'prinx-status-bar';
+    bar.style.cssText = `
+      position: fixed; bottom: 0; left: 0; right: 0; z-index: 9990;
+      height: 28px; padding: 0 14px 0 60px;
+      display: flex; align-items: center; gap: 18px;
+      background: linear-gradient(180deg, #0d1620 0%, #060a10 100%);
+      border-top: 1px solid #2a3440;
+      font-family: var(--ff-data, monospace); font-size: 11px;
+      color: #8a9aab; letter-spacing: .05em;
+    `;
+    bar.innerHTML = `
+      <span><span style="color:#7cf">●</span> EDGE</span>
+      <span id="sb-online" style="color:#4caf50">● 在线</span>
+      <span style="opacity:.4">|</span>
+      <span>OEE <b id="sb-oee" style="color:#7cf">--</b>%</span>
+      <span>工单 <b id="sb-wo" style="color:#cfe">--</b> · <b id="sb-wo-pct">0%</b></span>
+      <span style="opacity:.4">|</span>
+      <span>告警 <b id="sb-alarm-crit" style="color:#888">0</b> 紧 / <b id="sb-alarm-active" style="color:#fb4">0</b> 活动</span>
+      <span style="opacity:.4">|</span>
+      <span>PINN <b id="sb-pinn" style="color:#4caf50">●正常</b></span>
+      <span>cycles/h <b id="sb-cph" style="color:#cfe">0</b></span>
+      <span style="margin-left:auto" id="sb-shift-time"></span>
+    `;
+    document.body.appendChild(bar);
+    document.body.style.paddingBottom = '28px';
+  }
+
+  function updateStatusBar() {
+    const $ = (id) => document.getElementById(id);
+    if (!$('prinx-status-bar')) return;
+    const set = (id, v) => { const e = $(id); if (e) e.textContent = v; };
+    set('sb-oee', statusState.oee.toFixed(1));
+    set('sb-wo', statusState.workorderId);
+    set('sb-wo-pct', (statusState.workorderQty / Math.max(1, statusState.workorderPlan) * 100).toFixed(1) + '%');
+    set('sb-alarm-active', statusState.activeAlarms);
+    const cc = $('sb-alarm-crit'); if (cc) {
+      cc.textContent = statusState.critAlarms;
+      cc.style.color = statusState.critAlarms > 0 ? '#ff5252' : '#888';
+    }
+    const pn = $('sb-pinn'); if (pn) {
+      const ok = statusState.pinnSource === 'pinn';
+      pn.textContent = ok ? '●正常' : '●降级';
+      pn.style.color = ok ? '#4caf50' : '#fb4';
+    }
+    set('sb-cph', Math.round(statusState.cyclesPerHour));
+    const on = $('sb-online'); if (on) {
+      const stale = Date.now() - statusState.lastTickAt > 5000;
+      statusState.online = !stale;
+      on.textContent = statusState.online ? '● 在线' : '○ 离线';
+      on.style.color = statusState.online ? '#4caf50' : '#fb4';
+    }
+    set('sb-shift-time', new Date().toLocaleString('zh-CN', { hour12: false }).slice(5));
+  }
+  setInterval(updateStatusBar, 1000);
+
   // ─── WebSocket ──────────────────────────────────────────────────────────
 
   let ws = null;
@@ -341,6 +410,7 @@
         }
         break;
       case 'signal_delta':
+        statusState.lastTickAt = Date.now();
         for (const sv of msg.data) {
           signalCache[sv.tag] = sv;
           updateBoundElements(sv.tag, sv);
@@ -350,6 +420,10 @@
       case 'alarm_update':
         updateAlarmStrip(msg.data);
         emit('alarm', msg.data);
+        if (msg.type === 'alarm_new') {
+          statusState.activeAlarms += 1;
+          if (msg.data.tier <= 2) statusState.critAlarms += 1;
+        }
         // Visual pulse only on truly new (not update)
         if (msg.type === 'alarm_new') {
           document.body.classList.remove('alarm-flash');
@@ -360,11 +434,14 @@
         }
         break;
       case 'alarm_cleared':
+        statusState.activeAlarms = Math.max(0, statusState.activeAlarms - 1);
         break;
       case 'workorder_progress':
         document.querySelectorAll('[data-workorder-progress]').forEach((el) => {
           el.textContent = msg.data.produced_qty.toFixed(1);
         });
+        statusState.workorderId = msg.data.id;
+        statusState.workorderQty = msg.data.produced_qty;
         break;
       case 'estop':
         document.body.classList.add('estop-active');
@@ -372,6 +449,7 @@
         emit('estop', msg.data);
         break;
       case 'pinn_status_change':
+        statusState.pinnSource = msg.data.state;
         if (msg.data.state === 'mock_fallback') {
           showBanner(`⚠ PINN 已切换到 mock fallback：${msg.data.reason || '未知原因'}`, 'crit');
         } else {
@@ -381,6 +459,10 @@
         break;
       case 'cycle_complete':
         emit('cycle', msg.data);
+        cycleTimes.push(Date.now());
+        cycleTimes = cycleTimes.filter(t => Date.now() - t < 3600_000);
+        const elapsed = Math.min(3600_000, Date.now() - (cycleTimes[0] || Date.now() - 1000));
+        statusState.cyclesPerHour = cycleTimes.length * (3600_000 / Math.max(1000, elapsed));
         break;
       case 'control_cycle':
         emit('cycle', msg.data);
@@ -625,12 +707,21 @@
 
   function start() {
     injectGlobalStyles();
-    // Don't auto-connect on login page
     if (location.pathname.endsWith('login.html')) return;
     connect();
     window.PRINX.refresh().catch(() => {});
     window.PRINX.renderUserBadge();
     renderTourBall();
+    renderStatusBar();
+    if (window.PRINX?.api) {
+      window.PRINX.api.get('/api/alarms').then((arr) => {
+        if (Array.isArray(arr)) {
+          statusState.activeAlarms = arr.length;
+          statusState.critAlarms = arr.filter(a => a.tier <= 2 && a.state !== 'cleared').length;
+          updateStatusBar();
+        }
+      }).catch(() => {});
+    }
   }
 
   if (document.readyState === 'loading') {
