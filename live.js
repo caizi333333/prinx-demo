@@ -272,6 +272,8 @@
     pinnStatus: [],
     alarm: [],
     estop: [],
+    sampling: [],
+    workorder: [],
   };
   function emit(name, data) {
     for (const fn of listeners[name] || []) {
@@ -470,9 +472,181 @@
       case 'control_mode_changed':
         emit('mode', msg.data);
         break;
+      case 'workorder_complete':
+        showInfoToast(`工单完成: ${msg.data.id} · ${msg.data.plan_qty}m`, 'ok');
+        break;
+      case 'workorder_started':
+        showInfoToast(`新工单启动: ${msg.data.id} · ${msg.data.size || ''}`, 'ok');
+        break;
+      case 'changeover_start':
+        showChangeoverBanner(msg.data);
+        break;
+      case 'changeover_tick':
+        updateChangeoverBanner(msg.data);
+        break;
+      case 'changeover_complete':
+        hideChangeoverBanner();
+        showInfoToast('配方切换完成 · SP 已稳定到新值', 'ok');
+        break;
+      case 'maintenance_start':
+        showMaintenanceBanner(msg.data);
+        break;
+      case 'maintenance_tick':
+        updateMaintenanceBanner(msg.data);
+        break;
+      case 'maintenance_end':
+        hideMaintenanceBanner();
+        break;
+      case 'shift_handover':
+        showHandoverModal(msg.data);
+        break;
+      case 'sampling_event':
+        emit('sampling', msg.data);
+        break;
+      case 'scenario_start':
+        showScenarioProgress(msg.data);
+        break;
+      case 'scenario_tick':
+        updateScenarioProgress(msg.data);
+        break;
+      case 'scenario_end':
+        hideScenarioProgress();
+        break;
       default:
         break;
     }
+  }
+
+  // ─── v0.5.2 顶部横幅 / 模态 / 进度条 ────────────────────────────────
+
+  function showInfoToast(text, level = 'ok') {
+    const t = document.createElement('div');
+    const colors = { ok: ['#1a3a2a','#8fc','#5a8'], warn: ['#3a2a1a','#fb4','#fb4'], crit: ['#3a1820','#f8a','#f8a'] };
+    const [bg, fg, br] = colors[level] || colors.ok;
+    t.textContent = text;
+    t.style.cssText = `position:fixed;top:38px;left:50%;transform:translateX(-50%);z-index:10000;padding:10px 18px;background:${bg};color:${fg};border:1px solid ${br};font-family:var(--ff-cn,sans-serif);font-size:14px;letter-spacing:.05em;box-shadow:0 4px 14px rgba(0,0,0,.6);pointer-events:none;`;
+    document.body.appendChild(t);
+    setTimeout(() => t.remove(), 3500);
+  }
+
+  let bannerStack = [];
+  function ensureBannerStack() {
+    let host = document.getElementById('prinx-banner-stack');
+    if (host) return host;
+    host = document.createElement('div');
+    host.id = 'prinx-banner-stack';
+    host.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:1001;display:flex;flex-direction:column;';
+    document.body.appendChild(host);
+    return host;
+  }
+
+  function makeBanner(id, color) {
+    let b = document.getElementById(id);
+    if (b) return b;
+    b = document.createElement('div');
+    b.id = id;
+    b.style.cssText = `padding:6px 14px;font-family:var(--ff-data,monospace);font-size:13px;letter-spacing:.05em;text-align:center;background:${color.bg};color:${color.fg};border-bottom:1px solid ${color.br};`;
+    ensureBannerStack().appendChild(b);
+    return b;
+  }
+  function removeBanner(id) {
+    const b = document.getElementById(id);
+    if (b) b.remove();
+  }
+
+  let changeoverData = null;
+  function showChangeoverBanner(data) {
+    changeoverData = data;
+    const b = makeBanner('prinx-banner-changeover', { bg: '#001a2a', fg: '#7cf', br: '#7cf' });
+    b.innerHTML = `⟳ 配方切换中  ${data.from_recipe_id || ''} → <b>${data.to_recipe_id}</b>  ·  <span id="cob-pct">0</span>%  ·  剩 <span id="cob-sec">${data.duration_sec}</span>s  ·  ${data.transitions.length} 个 SP 缓动`;
+  }
+  function updateChangeoverBanner(data) {
+    const p = document.getElementById('cob-pct'); const s = document.getElementById('cob-sec');
+    if (p) p.textContent = data.progress_pct;
+    if (s) s.textContent = Math.ceil(data.remaining_sec);
+  }
+  function hideChangeoverBanner() { removeBanner('prinx-banner-changeover'); changeoverData = null; }
+
+  let maintTimer = null;
+  function showMaintenanceBanner(data) {
+    const b = makeBanner('prinx-banner-maint', { bg: '#3a2a08', fg: '#fb4', br: '#fb4' });
+    document.body.classList.add('maintenance-active');
+    const fmt = (s) => `${Math.floor(s/60)}:${String(Math.floor(s%60)).padStart(2,'0')}`;
+    b.innerHTML = `🔧 计划维护中  ·  <b>${data.reason}</b>  ·  还剩 <span id="mb-rem">${fmt(data.remaining_sec)}</span>  · 信号已暂停`;
+  }
+  function updateMaintenanceBanner(data) {
+    const r = document.getElementById('mb-rem');
+    if (r) r.textContent = `${Math.floor(data.remaining_sec/60)}:${String(Math.floor(data.remaining_sec%60)).padStart(2,'0')}`;
+  }
+  function hideMaintenanceBanner() {
+    removeBanner('prinx-banner-maint');
+    document.body.classList.remove('maintenance-active');
+  }
+
+  // 班次交接模态
+  function showHandoverModal(data) {
+    const old = document.getElementById('prinx-handover'); if (old) old.remove();
+    const m = document.createElement('div');
+    m.id = 'prinx-handover';
+    m.style.cssText = 'position:fixed;inset:0;z-index:10001;background:rgba(0,8,15,.78);display:flex;align-items:center;justify-content:center;backdrop-filter:blur(2px);';
+    const s = data.stats || {};
+    m.innerHTML = `
+      <div style="width:560px;max-width:92vw;background:#0b1620;border:1px solid #3a557a;font-family:var(--ff-cn,sans-serif);color:#cfe;padding:0;box-shadow:0 12px 40px rgba(0,0,0,.7);">
+        <div style="padding:14px 20px;background:#001a2a;border-bottom:1px solid #3a557a;display:flex;justify-content:space-between;align-items:center;">
+          <span style="font-size:18px;letter-spacing:.1em;color:#7cf">班次交接  ·  ${data.from} → ${data.to}</span>
+          <span id="ho-timer" style="font-family:var(--ff-data,monospace);font-size:12px;color:#888">30s</span>
+        </div>
+        <div style="padding:18px 22px;border-bottom:1px solid #1a2a3a;">
+          <div style="font-size:13px;color:#7cf;letter-spacing:.1em;margin-bottom:8px">上班信息</div>
+          <div style="display:grid;grid-template-columns:120px 1fr;gap:8px 16px;font-family:var(--ff-data,monospace);font-size:13px;">
+            <span style="color:#789">交班人</span><span>${data.from_operator}（${data.from} 班）</span>
+            <span style="color:#789">完成卷数</span><span>${s.rolls_completed || 0} 卷  ·  ${(s.produced_m || 0).toFixed(1)} m</span>
+            <span style="color:#789">告警</span><span>Tier 1/2 <b style="color:#f88">${s.alarms_tier12 || 0}</b> 条  ·  Tier 3 <b style="color:#fb8">${s.alarms_tier3 || 0}</b> 条</span>
+            <span style="color:#789">闭环 cycle</span><span>应用 <b style="color:#8fc">${s.cycles_applied || 0}</b>  ·  拒绝 <b style="color:#fb8">${s.cycles_rejected || 0}</b></span>
+            <span style="color:#789">未结告警</span><span><b style="color:${s.unack_alarms ? '#f88' : '#8fc'}">${s.unack_alarms || 0}</b> 条待 ack</span>
+          </div>
+        </div>
+        <div style="padding:18px 22px;background:#0a1a26;display:flex;align-items:center;gap:18px;">
+          <div style="width:56px;height:56px;background:#1a3a5a;color:#7cf;display:grid;place-items:center;font-family:var(--ff-data,monospace);font-size:18px;letter-spacing:.05em;">${data.to_avatar || data.to}</div>
+          <div style="flex:1;">
+            <div style="font-size:14px">接班人 <b style="color:#cfe">${data.to_operator}</b>（${data.to} 班）</div>
+            <div style="font-size:12px;color:#789;margin-top:2px">LV${data.to_level || 2}  ·  请确认接班</div>
+          </div>
+          <button id="ho-confirm" style="padding:10px 22px;background:#7cf;color:#001;border:0;font-family:var(--ff-cn);font-size:14px;font-weight:600;cursor:pointer;letter-spacing:.05em">✓ 我已确认接班</button>
+        </div>
+      </div>`;
+    document.body.appendChild(m);
+    let left = 30;
+    const tmr = setInterval(() => {
+      left -= 1;
+      const t = document.getElementById('ho-timer'); if (t) t.textContent = `${left}s 后自动关闭`;
+      if (left <= 0) { clearInterval(tmr); m.remove(); }
+    }, 1000);
+    document.getElementById('ho-confirm').onclick = () => { clearInterval(tmr); m.remove(); };
+  }
+
+  // 剧本进度条
+  function showScenarioProgress(data) {
+    let bar = document.getElementById('prinx-scenario-bar');
+    if (!bar) {
+      bar = document.createElement('div');
+      bar.id = 'prinx-scenario-bar';
+      bar.style.cssText = 'position:fixed;top:0;left:0;right:0;height:3px;z-index:1002;background:rgba(0,0,0,.4);';
+      bar.innerHTML = '<div id="psb-fill" style="height:100%;width:0%;background:#7cf;transition:width .5s linear;box-shadow:0 0 8px #7cf;"></div><div id="psb-label" style="position:absolute;top:6px;right:14px;font-family:var(--ff-data,monospace);font-size:11px;color:#7cf;letter-spacing:.1em;">▶ 剧本播放中 · 0:00 / ' + Math.floor(data.total_sec/60) + ':' + String(data.total_sec%60).padStart(2,'0') + '</div>';
+      document.body.appendChild(bar);
+    }
+    bar.dataset.total = data.total_sec;
+  }
+  function updateScenarioProgress(data) {
+    const fill = document.getElementById('psb-fill');
+    const lbl = document.getElementById('psb-label');
+    const total = data.total_sec || parseInt(document.getElementById('prinx-scenario-bar')?.dataset.total || '290', 10);
+    if (fill) fill.style.width = `${Math.min(100, (data.elapsed_sec / total) * 100)}%`;
+    if (lbl) lbl.textContent = `▶ 剧本播放中 · ${Math.floor(data.elapsed_sec/60)}:${String(data.elapsed_sec%60).padStart(2,'0')} / ${Math.floor(total/60)}:${String(total%60).padStart(2,'0')}`;
+  }
+  function hideScenarioProgress() {
+    const bar = document.getElementById('prinx-scenario-bar');
+    if (bar) bar.remove();
   }
 
   // ─── ACK button delegation ─────────────────────────────────────────────
@@ -539,6 +713,9 @@
     onPinnStatus(fn) { listeners.pinnStatus.push(fn); },
     onAlarm(fn) { listeners.alarm.push(fn); },
     onEStop(fn) { listeners.estop.push(fn); },
+    onSampling(fn) { listeners.sampling.push(fn); },
+    onWorkorder(fn) { listeners.workorder.push(fn); },
+    listeners,  // expose for advanced use
 
     /** Render user badge into selector (e.g. .top-strip-right) */
     renderUserBadge(selector = '.top-strip-right') {

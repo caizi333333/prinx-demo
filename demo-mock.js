@@ -94,6 +94,11 @@
   add('EXT-M.MELT_TEMP', '中挤出机胶温', '°C', 'pv', [40, 120], 'extruder-mid');
   add('EXT-B.MELT_TEMP', '下挤出机胶温', '°C', 'pv', [40, 120], 'extruder-btm');
   add('TENSION.PV', '张力', 'MPA', 'pv', [0, 5], 'floater');
+  // 滤网压差累积 (4 挤出机) — 按速度积分上升
+  add('FILTER-DIFF.150T', '上挤出机滤网压差', 'MPA', 'pv', [0, 1.2], 'extruder-top', { high: 0.6, hh: 0.8 });
+  add('FILTER-DIFF.150M', '中挤出机滤网压差', 'MPA', 'pv', [0, 1.2], 'extruder-mid', { high: 0.6, hh: 0.8 });
+  add('FILTER-DIFF.150B', '下挤出机滤网压差', 'MPA', 'pv', [0, 1.2], 'extruder-btm', { high: 0.6, hh: 0.8 });
+  add('FILTER-DIFF.90',   '90挤出机滤网压差',  'MPA', 'pv', [0, 1.2], 'extruder-90',  { high: 0.6, hh: 0.8 });
 
   const SEGMENTS = [
     { id: 'extruder-90', name: '90 挤出机', role: '胎侧专用', signals: [] },
@@ -155,6 +160,22 @@
   let appliedCount = 0;
   let rejectedCount = 0;
   let workorderQty = 75.0;
+
+  // ─── v0.5.2 业务事件状态 ───────────────────────────────────────────────
+  let pauseReason = null;             // 'estop' | 'maintenance' | null  — 区分两种暂停
+  let qualitySamples = [];            // 抽样 + 手录质量数据
+  let shiftStats = {};                // 每班滚动统计
+  let maintenanceWindow = null;       // 维护窗口进行中
+  let changeoverActive = null;        // 配方切换进行中
+  let scenarioPlayer = null;          // 自动剧本进行中
+  let lastSampleAt = 0;
+  let lastMaintAt = Date.now();
+
+  const SAMPLING_INTERVAL_MS = 60_000;       // demo 加速：1min 一次抽样
+  const MAINTENANCE_INTERVAL_MS = 8 * 60_000; // demo 加速：8min 一次维护
+  const MAINTENANCE_DURATION_SEC = 120;       // demo 加速：2min 维护
+  const FILTER_FILL_RATE = 0.0008;            // MPa per RPM·sec
+  const HANDOVER_AUTO_DISMISS_SEC = 30;
 
   // ─── Shift cycle (real wall-clock) ─────────────────────────────────────
   // A 班 8:00-16:00, B 班 16:00-24:00, C 班 0:00-8:00
@@ -231,7 +252,181 @@
     { id: 'PS1108-2604-B13', spec: 'PS1108', size: '19" 半钢胎侧', recipe: { id: 'PS1108-S54-v3.1', version: '3.1' },
       die_pre: 'S0118', die_plate: '06S03', shift: 'B', date: new Date().toISOString().slice(0, 10),
       plan_qty: 800, produced_qty: 0, status: 'pending' },
+    { id: 'PS1226-2604-B14', spec: 'PS1226', size: '22" 半钢胎侧', recipe: { id: 'PS1226-S62-v2.4', version: '2.4' },
+      die_pre: 'S0275', die_plate: '06S06', shift: 'C', date: new Date().toISOString().slice(0, 10),
+      plan_qty: 1200, produced_qty: 0, status: 'pending' },
   ];
+
+  // ─── v0.5.2 业务事件函数 ──────────────────────────────────────────────
+
+  function pulseToast(text, level) {
+    if (!document.body) { setTimeout(() => pulseToast(text, level), 50); return; }
+    const t = document.createElement('div');
+    const colors = { ok: ['#1a3a2a', '#8fc', '#5a8'], warn: ['#3a2a1a', '#fb4', '#fb4'], crit: ['#3a1820', '#f8a', '#f8a'] };
+    const [bg, fg, br] = colors[level] || colors.ok;
+    t.textContent = text;
+    t.style.cssText = `
+      position: fixed; top: 38px; left: 50%; transform: translateX(-50%); z-index: 10000;
+      padding: 10px 18px; background: ${bg}; color: ${fg}; border: 1px solid ${br};
+      font-family: var(--ff-cn, sans-serif); font-size: 14px; letter-spacing: .05em;
+      box-shadow: 0 4px 14px rgba(0,0,0,.6); pointer-events: none; max-width: 80vw;
+    `;
+    document.body.appendChild(t);
+    setTimeout(() => t.remove(), 3500);
+  }
+
+  function currentShiftKey() {
+    const s = currentShift();
+    return new Date().toISOString().slice(0, 10) + '-' + s.code;
+  }
+
+  function startNextWorkorder(wo) {
+    wo.status = 'running'; wo.start_at = new Date().toISOString();
+    workorderQty = 0;
+    // 找新工单的配方
+    const newRecipe = RECIPES.find(r => r.id === wo.recipe?.id) || RECIPES[0];
+    const oldRecipe = RECIPES.find(r => r.status === 'in_use') || RECIPES[0];
+    triggerChangeover(oldRecipe, newRecipe, 60);
+    // 工单数组重排：running 排前
+    const idx = WORKORDERS.indexOf(wo); if (idx > 0) WORKORDERS.splice(idx, 1), WORKORDERS.unshift(wo);
+    wsBroadcast({ type: 'workorder_started', data: wo });
+    pulseToast(`新工单启动: ${wo.id} · ${wo.size} · ${wo.plan_qty}m`, 'ok');
+  }
+
+  function triggerChangeover(fromRecipe, toRecipe, durationSec = 60) {
+    if (!toRecipe) return;
+    const transitions = [];
+    const newSp = { ...(toRecipe.parameters || {}), ...(toRecipe.tcu_zones || {}) };
+    for (const [tag, toVal] of Object.entries(newSp)) {
+      const fromVal = SETPOINTS[tag] ?? toVal;
+      if (Math.abs(fromVal - toVal) > 0.01) transitions.push({ tag, from: fromVal, to: toVal });
+    }
+    if (!transitions.length) return;
+    changeoverActive = {
+      from_recipe_id: fromRecipe?.id, to_recipe_id: toRecipe.id,
+      from_recipe_name: fromRecipe?.name || '', to_recipe_name: toRecipe.name || '',
+      started_at: Date.now(), duration_sec: durationSec, transitions, progress_pct: 0,
+    };
+    wsBroadcast({ type: 'changeover_start', data: changeoverActive });
+  }
+
+  function takeSample(source = 'auto', operatorOverride) {
+    const now = Date.now();
+    const widthActual = (state['WIDTH-REAR.PV']?.value ?? 165) + noise(2, 0.3);
+    const weightActual = (state['SCL-REAR.PV']?.value ?? 0.75) + noise(0.04, 0.3);
+    const thicknessActual = 3.4 + noise(0.1, 0.3);
+    const speedT = state['EXT-T.SPEED']?.value ?? 5.1;
+    const dieAvg = ['TT-DIE-T.PV','TT-DIE-TM.PV','TT-DIE-M.PV','TT-DIE-BM.PV','TT-DIE-B.PV']
+      .map(k => state[k]?.value ?? 75).reduce((a,b)=>a+b,0)/5;
+    const pinnThickness = 3.4 + (speedT - 5.1) * 0.05 - (dieAvg - 75) * 0.01;
+    const pinnWidth = 165 + ((state['TAKEUP.SPEED']?.value ?? 5) - 5) * 0.5;
+    const pinnWeight = 0.75 + (pinnThickness - 3.4) * 0.02;
+    const delta = ((thicknessActual - pinnThickness) / pinnThickness) * 100;
+    const sample = {
+      id: `S-${now}`, ts: now, source,
+      operator: operatorOverride || (source === 'manual' ? '手动录入' : 'auto'),
+      thickness_actual: round3(thicknessActual), width_actual: round3(widthActual), weight_actual: round3(weightActual),
+      pinn_thickness: round3(pinnThickness), pinn_width: round3(pinnWidth), pinn_weight: round3(pinnWeight),
+      delta_pct: round3(delta),
+    };
+    qualitySamples.unshift(sample);
+    if (qualitySamples.length > 200) qualitySamples.pop();
+    wsBroadcast({ type: 'sampling_event', data: sample });
+    if (source === 'auto') {
+      pulseToast(`抽样验证: 实测 ${sample.thickness_actual}mm  ·  PINN 预测 ${sample.pinn_thickness}mm  ·  偏差 ${delta >= 0 ? '+' : ''}${delta.toFixed(2)}%`, Math.abs(delta) > 3 ? 'warn' : 'ok');
+    }
+    return sample;
+  }
+  function round3(x) { return Math.round(x * 1000) / 1000; }
+
+  function startMaintenance(reason = '清滤网 · 例行') {
+    if (maintenanceWindow) return;
+    maintenanceWindow = { type: 'pm', reason, started_at: Date.now(),
+      duration_sec: MAINTENANCE_DURATION_SEC, remaining_sec: MAINTENANCE_DURATION_SEC };
+    pauseReason = 'maintenance';
+    wsBroadcast({ type: 'maintenance_start', data: maintenanceWindow });
+    // 清滤网 → 压差归零
+    for (const t of ['FILTER-DIFF.150T','FILTER-DIFF.150M','FILTER-DIFF.150B','FILTER-DIFF.90']) {
+      state[t] = { tag: t, value: 0, quality: 'good', timestamp: Date.now() };
+    }
+    const iv = setInterval(() => {
+      maintenanceWindow.remaining_sec -= 1;
+      wsBroadcast({ type: 'maintenance_tick', data: { remaining_sec: maintenanceWindow.remaining_sec } });
+      if (maintenanceWindow.remaining_sec <= 0) {
+        clearInterval(iv);
+        pauseReason = null;
+        wsBroadcast({ type: 'maintenance_end', data: maintenanceWindow });
+        pulseToast('维护完成 · 滤网已清 · 恢复生产', 'ok');
+        maintenanceWindow = null;
+      }
+    }, 1000);
+  }
+
+  // ⑧ 5min 自动剧本
+  const SCRIPT_LIFECYCLE = [
+    { at: 0,   label: '正常生产 · 各信号稳态',     act: () => runPreset('scn-normal') },
+    { at: 25,  label: '工艺漂移 · 模头温区失对称', act: () => runPreset('scn-drift') },
+    { at: 70,  label: '阈值告警自动触发 · Tier 2', act: () => {} },
+    { at: 100, label: 'PINN 输出推荐 SP 调整',     act: () => emitSyntheticCycle('pinn') },
+    { at: 130, label: 'LV3 操作员启用 Auto-tune',  act: () => { mode = 'auto_tune'; wsBroadcast({ type: 'control_mode_changed', data: { mode, by: '王建国' } }); } },
+    { at: 160, label: '闭环 cycle 应用调整',       act: () => emitSyntheticCycle('apply') },
+    { at: 200, label: '工艺逐步回归 · 信号收敛',   act: () => runPreset('scn-normal') },
+    { at: 240, label: '抽样验证: 实测匹配 PINN',   act: () => takeSample('auto') },
+    { at: 280, label: '剧本结束 · 切回手动',       act: () => { mode = 'manual'; scenarioPlayer = null; wsBroadcast({ type: 'scenario_end' }); } },
+  ];
+
+  function startScenario() {
+    if (scenarioPlayer) return;
+    scenarioPlayer = { started_at: Date.now(), step_idx: 0, total_sec: 290 };
+    wsBroadcast({ type: 'scenario_start', data: { total_sec: 290, name: '生产价值闭环' } });
+  }
+  function advanceScenario(now) {
+    const elapsed = (now - scenarioPlayer.started_at) / 1000;
+    while (scenarioPlayer.step_idx < SCRIPT_LIFECYCLE.length && SCRIPT_LIFECYCLE[scenarioPlayer.step_idx].at <= elapsed) {
+      const step = SCRIPT_LIFECYCLE[scenarioPlayer.step_idx];
+      pulseToast(`▶ ${Math.floor(step.at/60)}:${String(step.at%60).padStart(2,'0')}  ${step.label}`, 'ok');
+      try { step.act(); } catch {}
+      scenarioPlayer.step_idx += 1;
+    }
+    if (Math.floor(elapsed) % 2 === 0) {
+      wsBroadcast({ type: 'scenario_tick', data: { elapsed_sec: Math.floor(elapsed), total_sec: scenarioPlayer.total_sec } });
+    }
+  }
+  function emitSyntheticCycle(kind) {
+    cycleCount += 1;
+    const cycle = {
+      id: `cycle-script-${cycleCount}`, timestamp: Date.now(),
+      source: 'pinn', trigger: kind === 'pinn' ? 'pinn_recommendation' : 'auto_tune_cycle',
+      initiated_by: 'auto_tune', pinn_confidence: dynamicConfidence(),
+      pinn_model_version: 'quality-2026.04.28-v2', pinn_source: pinnSource,
+      proposals: [{ tag: 'TT-DIE-T.SP', label: '上模温度设定', unit: '°C',
+        current: SETPOINTS['TT-DIE-T.SP'] || 75, proposed: 75.0, delta: 0, delta_pct: 0,
+        gates: kind === 'apply' ? [
+          { gate: 'source', passed: true }, { gate: 'alarm', passed: true }, { gate: 'mode', passed: true },
+          { gate: 'shadow', passed: true }, { gate: 'range', passed: true }, { gate: 'deviation', passed: true }, { gate: 'rate', passed: true }
+        ] : [{ gate: 'source', passed: true }],
+        applied: kind === 'apply', decision: kind === 'apply' ? 'applied' : 'rejected',
+      }],
+      overall_status: kind === 'apply' ? 'applied' : 'rejected',
+      applied_count: kind === 'apply' ? 1 : 0, rejected_count: kind === 'apply' ? 0 : 1,
+    };
+    if (kind === 'apply') {
+      SETPOINTS['TT-DIE-T.SP'] = 75.0;
+      appliedCount += 1;
+      shiftStats[currentShiftKey()] && (shiftStats[currentShiftKey()].cycles_applied += 1);
+    } else {
+      shiftStats[currentShiftKey()] && (shiftStats[currentShiftKey()].cycles_rejected += 1);
+    }
+    recentCycles.unshift(cycle);
+    if (recentCycles.length > 50) recentCycles.pop();
+    wsBroadcast({ type: 'cycle_complete', data: { cycle_id: cycle.id, mode, source: pinnSource, applied_count: cycle.applied_count, rejected_count: cycle.rejected_count, latency_ms: 80 } });
+    wsBroadcast({ type: 'control_cycle', data: cycle });
+  }
+  function runPreset(name) {
+    // 复用 scenario 按钮内的逻辑
+    const ev = new CustomEvent('prinx-demo-preset', { detail: name });
+    window.dispatchEvent(ev);
+  }
   let alarmsActive = [];
   let alarmsHistory = [];
   let alarmSeq = 0;
@@ -341,9 +536,27 @@
   // ─── Tick (1 Hz simulation) ───────────────────────────────────────────
 
   function tick() {
-    if (estopActive) return;
+    if (estopActive || pauseReason === 'maintenance') return;
     const now = Date.now();
     const changed = [];
+
+    // Recipe changeover: ease-in-out interpolate SP
+    if (changeoverActive) {
+      const elapsed = (now - changeoverActive.started_at) / 1000;
+      const t = Math.min(1, elapsed / changeoverActive.duration_sec);
+      const k = t < 0.5 ? 2*t*t : 1 - Math.pow(-2*t + 2, 2) / 2;
+      for (const tr of changeoverActive.transitions) {
+        SETPOINTS[tr.tag] = tr.from + (tr.to - tr.from) * k;
+      }
+      changeoverActive.progress_pct = Math.round(t * 100);
+      if (t >= 1) {
+        wsBroadcast({ type: 'changeover_complete', data: changeoverActive });
+        changeoverActive = null;
+      } else if (Math.floor(elapsed) % 2 === 0) {
+        wsBroadcast({ type: 'changeover_tick', data: { progress_pct: changeoverActive.progress_pct, remaining_sec: Math.max(0, changeoverActive.duration_sec - elapsed) } });
+      }
+    }
+
     const targets = deriveTargets();
 
     for (const sig of SIGNALS) {
@@ -376,19 +589,62 @@
       }
     }
 
-    // Workorder progress driven by actual TAKEUP speed
+    // Workorder progress driven by actual TAKEUP speed (×30 demo speedup)
     const takeup = state['TAKEUP.SPEED']?.value ?? 5;
-    workorderQty += takeup / 60;
+    const speedup = scenarioPlayer ? 1 : 30;   // 剧本期间真实节奏，否则 30×
+    workorderQty += (takeup / 60) * speedup;
     state['REEL.LENGTH'] = { tag: 'REEL.LENGTH', value: workorderQty, quality: 'good', timestamp: now };
-    WORKORDERS[0].produced_qty = Math.round(workorderQty * 10) / 10;
+    const wo0 = WORKORDERS.find(w => w.status === 'running') || WORKORDERS[0];
+    wo0.produced_qty = Math.round(workorderQty * 10) / 10;
+
+    // ④ 滤网压差按速度积分上升
+    for (const [extId, sigTag] of [['T','FILTER-DIFF.150T'],['M','FILTER-DIFF.150M'],['B','FILTER-DIFF.150B'],['90','FILTER-DIFF.90']]) {
+      const speed = state[`EXT-${extId}.SPEED`]?.value ?? 0;
+      const cur = state[sigTag]?.value ?? 0;
+      const next = Math.min(1.2, cur + speed * FILTER_FILL_RATE);
+      if (Math.abs(next - cur) > 0.0001) {
+        state[sigTag] = { tag: sigTag, value: next, quality: 'good', timestamp: now };
+        changed.push(state[sigTag]);
+      }
+    }
+
+    // ① 工单完成检测
+    if (wo0.status === 'running' && wo0.produced_qty >= wo0.plan_qty) {
+      wo0.status = 'completed'; wo0.end_at = new Date().toISOString();
+      wsBroadcast({ type: 'workorder_complete', data: wo0 });
+      pulseToast(`工单 ${wo0.id} 完成 (${wo0.plan_qty}m)`, 'ok');
+      shiftStats[currentShiftKey()] && (shiftStats[currentShiftKey()].rolls_completed = (shiftStats[currentShiftKey()].rolls_completed||0) + 1);
+      const next = WORKORDERS.find(w => w.status === 'pending');
+      if (next) startNextWorkorder(next);
+    }
+
+    // ② 抽样事件（每 N 秒）
+    if (now - lastSampleAt > SAMPLING_INTERVAL_MS) {
+      lastSampleAt = now;
+      takeSample('auto');
+    }
+
+    // ⑥ 维护窗口触发
+    if (!maintenanceWindow && !estopActive && now - lastMaintAt > MAINTENANCE_INTERVAL_MS) {
+      lastMaintAt = now;
+      startMaintenance('清滤网 · 例行');
+    }
+
+    // ③ 班次统计累积
+    const sk = currentShiftKey();
+    if (!shiftStats[sk]) shiftStats[sk] = { shift: sk.split('-')[1], started_at: now, produced_m: 0, alarms_count: 0, cycles_applied: 0, cycles_rejected: 0, rolls_completed: 0 };
+    shiftStats[sk].produced_m = Math.round((shiftStats[sk].produced_m + takeup * speedup / 60) * 10) / 10;
+
+    // ⑧ 自动剧本步进
+    if (scenarioPlayer) advanceScenario(now);
 
     // Threshold-driven alarms (auto-raise / auto-clear)
     evaluateAlarms(now);
 
     // Broadcast signal_delta (cap to keep WS payload small)
-    if (changed.length) wsBroadcast({ type: 'signal_delta', data: changed.slice(0, 40), ts: now });
+    if (changed.length) wsBroadcast({ type: 'signal_delta', data: changed.slice(0, 50), ts: now });
     if (Math.floor(now / 500) % 2 === 0) {
-      wsBroadcast({ type: 'workorder_progress', data: { id: WORKORDERS[0].id, produced_qty: WORKORDERS[0].produced_qty } });
+      wsBroadcast({ type: 'workorder_progress', data: { id: wo0.id, produced_qty: wo0.produced_qty } });
     }
   }
   setInterval(tick, 1000);
@@ -409,12 +665,25 @@
     const s = currentShift();
     applyShiftToUI();
     if (s.code !== lastShift) {
-      wsBroadcast({ type: 'shift_change', data: { from: lastShift, to: s.code, operator: s.operator } });
-      const t = document.createElement('div');
-      t.textContent = `班次切换: ${lastShift} → ${s.code} (${s.operator})`;
-      t.style.cssText = 'position:fixed;top:38px;left:50%;transform:translateX(-50%);z-index:10001;padding:10px 18px;background:#1a3a2a;color:#8fc;border:1px solid #5a8;font-family:var(--ff-cn);font-size:14px;box-shadow:0 4px 14px rgba(0,0,0,.6);pointer-events:none;';
-      document.body.appendChild(t);
-      setTimeout(() => t.remove(), 4000);
+      const fromShift = lastShift;
+      const fromOp = fromShift === 'A' ? '王建国' : fromShift === 'B' ? '李振华' : '张伟';
+      // 找上一班的 stats key（粗略：用今天日期 + fromShift）
+      const lastKey = Object.keys(shiftStats).reverse().find(k => k.endsWith('-' + fromShift)) || '';
+      const stats = shiftStats[lastKey] || { produced_m: 0, alarms_count: alarmsHistory.length, cycles_applied: appliedCount, cycles_rejected: rejectedCount, rolls_completed: 0 };
+      wsBroadcast({ type: 'shift_handover', data: {
+        from: fromShift, to: s.code,
+        from_operator: fromOp, to_operator: s.operator, to_avatar: s.avatar, to_level: s.level,
+        stats: {
+          rolls_completed: stats.rolls_completed || 0,
+          produced_m: stats.produced_m || 0,
+          alarms_tier12: alarmsHistory.filter(a => a.tier <= 2).length,
+          alarms_tier3: alarmsHistory.filter(a => a.tier === 3).length,
+          cycles_applied: stats.cycles_applied || 0,
+          cycles_rejected: stats.cycles_rejected || 0,
+          unack_alarms: alarmsActive.filter(a => a.state === 'unack').length,
+        },
+      } });
+      // 触发交接卡（live.js 监听 shift_handover）
       lastShift = s.code;
     }
   }, 15000);
@@ -435,6 +704,10 @@
     'WIDTH-REAR.PV': { hi: '后测宽偏宽 +', lo: '后测宽偏窄 ', unit: 'MM', sp: 'WIDTH-REAR.SP', tol: 3 },
     'SCL-FRONT.PV': { hi: '前秤偏重 ', lo: '前秤偏轻 ', unit: 'KG/M', sp: 'SCL-FRONT.SP', tol: 0.015 },
     'SCL-REAR.PV': { hi: '后秤偏重 ', lo: '后秤偏轻 ', unit: 'KG/M', sp: 'SCL-REAR.SP', tol: 0.015 },
+    'FILTER-DIFF.150T': { hi: '上挤出机滤网压差累积 ', unit: 'MPa', limit: { hi: 0.6, hh: 0.8 } },
+    'FILTER-DIFF.150M': { hi: '中挤出机滤网压差累积 ', unit: 'MPa', limit: { hi: 0.6, hh: 0.8 } },
+    'FILTER-DIFF.150B': { hi: '下挤出机滤网压差累积 ', unit: 'MPa', limit: { hi: 0.6, hh: 0.8 } },
+    'FILTER-DIFF.90':   { hi: '90挤出机滤网压差累积 ',  unit: 'MPa', limit: { hi: 0.6, hh: 0.8 } },
   };
 
   function evaluateAlarms(now) {
@@ -641,7 +914,37 @@
     if (method === 'POST' && path === '/api/auth/logout') return jsonResponse({ ok: true });
 
     // Health
-    if (method === 'GET' && path === '/health') return jsonResponse({ ok: true, version: '0.5.0-demo', env: 'demo', simulator_running: !estopActive, pinn_source: pinnSource, active_alarms: alarmsActive.length, db: false });
+    if (method === 'GET' && path === '/health') return jsonResponse({ ok: true, version: '0.5.2-demo', env: 'demo', simulator_running: !estopActive && !maintenanceWindow, pinn_source: pinnSource, active_alarms: alarmsActive.length, maintenance: !!maintenanceWindow, changeover: !!changeoverActive, scenario: !!scenarioPlayer, db: false });
+
+    // ─── v0.5.2 质量样本 ───────────────────────────────────────────
+    if (method === 'GET' && path.startsWith('/api/quality/samples')) {
+      const u = new URL('http://x' + path);
+      const limit = Math.min(200, parseInt(u.searchParams.get('limit') || '50', 10));
+      return jsonResponse(qualitySamples.slice(0, limit));
+    }
+    if (method === 'POST' && path === '/api/quality/samples') {
+      const sample = takeSample('manual', body?.operator);
+      // 替换为用户输入的实测值
+      if (typeof body?.thickness === 'number') sample.thickness_actual = round3(body.thickness);
+      if (typeof body?.width === 'number') sample.width_actual = round3(body.width);
+      if (typeof body?.weight === 'number') sample.weight_actual = round3(body.weight);
+      sample.delta_pct = round3(((sample.thickness_actual - sample.pinn_thickness) / sample.pinn_thickness) * 100);
+      sample.notes = body?.notes;
+      return jsonResponse(sample);
+    }
+    // 维护窗口状态
+    if (method === 'GET' && path === '/api/maintenance/current') {
+      return jsonResponse(maintenanceWindow || { active: false });
+    }
+    // 班次统计
+    if (method === 'GET' && path.startsWith('/api/shift/stats')) {
+      const sk = currentShiftKey();
+      return jsonResponse(shiftStats[sk] || { shift: currentShift().code, produced_m: 0, alarms_count: 0, cycles_applied: 0, cycles_rejected: 0, rolls_completed: 0 });
+    }
+    // 剧本控制
+    if (method === 'POST' && path === '/api/demo/scenario/start') { startScenario(); return jsonResponse({ started: true }); }
+    if (method === 'POST' && path === '/api/demo/scenario/stop') { scenarioPlayer = null; wsBroadcast({ type: 'scenario_end' }); return jsonResponse({ stopped: true }); }
+
 
     // Device & signals
     if (method === 'GET' && path === '/api/device') return jsonResponse(DEVICE);
@@ -899,6 +1202,8 @@
       <div style="margin-bottom:6px;color:#7cf;letter-spacing:.15em;text-transform:uppercase">演示控制</div>
       <div style="margin-bottom:8px;color:#9ab;line-height:1.4">所有数据由浏览器模拟生成。</div>
 
+      <button data-act="play-script" id="prinx-script-btn" style="width:100%;margin:4px 0 10px;padding:8px;background:#001a2a;color:#7cf;border:2px solid #7cf;font-family:inherit;font-size:12px;font-weight:600;cursor:pointer;letter-spacing:.05em">▶ 5min 自动剧本播放</button>
+
       <div style="font-size:10px;color:#678;letter-spacing:.1em;text-transform:uppercase;margin:8px 0 4px">场景预设</div>
       <button data-act="scn-normal" style="width:100%;margin:2px 0;padding:6px;background:#1a3a2a;color:#8fc;border:1px solid #5a8;font-family:inherit;font-size:11px;cursor:pointer">★ 正常生产 (默认)</button>
       <button data-act="scn-overload" style="width:100%;margin:2px 0;padding:6px;background:#3a2a1a;color:#fb4;border:1px solid #fb4;font-family:inherit;font-size:11px;cursor:pointer">↑ 满负荷生产 (压力↑)</button>
@@ -939,10 +1244,39 @@
       setTimeout(() => t.remove(), 3500);
     }
 
+    // 剧本进度更新按钮文本
+    setInterval(() => {
+      const btn = document.getElementById('prinx-script-btn');
+      if (!btn) return;
+      if (scenarioPlayer) {
+        const elapsed = (Date.now() - scenarioPlayer.started_at) / 1000;
+        const remaining = Math.max(0, scenarioPlayer.total_sec - elapsed);
+        btn.textContent = `■ 停止剧本 (剩 ${Math.floor(remaining/60)}:${String(Math.floor(remaining%60)).padStart(2,'0')})`;
+        btn.style.background = '#3a1010'; btn.style.borderColor = '#f88'; btn.style.color = '#f88';
+      } else {
+        btn.textContent = '▶ 5min 自动剧本播放';
+        btn.style.background = '#001a2a'; btn.style.borderColor = '#7cf'; btn.style.color = '#7cf';
+      }
+    }, 1000);
+
+    // 接收 runPreset 触发（剧本中会调）
+    window.addEventListener('prinx-demo-preset', (e) => {
+      const fakeBtn = panel.querySelector(`[data-act="${e.detail}"]`);
+      if (fakeBtn) fakeBtn.click();
+    });
+
     panel.addEventListener('click', (e) => {
       const t = e.target;
       if (!(t instanceof HTMLElement) || !t.dataset.act) return;
+      // 剧本播放中禁用其他场景按钮
+      if (scenarioPlayer && t.dataset.act !== 'play-script' && t.dataset.act !== 'reset') {
+        pulseToast('剧本播放中 · 请先停止', 'warn'); return;
+      }
       switch (t.dataset.act) {
+        case 'play-script':
+          if (scenarioPlayer) { scenarioPlayer = null; wsBroadcast({ type: 'scenario_end' }); pulseToast('剧本已停止', 'warn'); }
+          else startScenario();
+          return;
         case 'alarm': {
           const tag = ['TT-150B-Z3', 'PT-150T', 'FLT-06.PRESSURE', 'WIDTH-REAR.PV'][Math.floor(Math.random() * 4)];
           const a = makeAlarm(tag, 1 + Math.floor(Math.random() * 3), 'process', `${tag} 演示告警 (手动触发)`, tag.split('.')[0]);

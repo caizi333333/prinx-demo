@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=1600">
+<title>质量管理 / 6#胎侧 — PRINX HMI</title>
+<link rel="stylesheet" href="../style.css?v=15">
+<style>
+  .q-canvas {
+    display: grid;
+    grid-template-columns: 1fr 460px 360px;
+    grid-template-rows: auto 1fr;
+    gap: var(--sp-2);
+    overflow: hidden;
+    padding: var(--sp-2) var(--sp-3);
+  }
+  .q-intro { grid-column: 1/-1; padding: 10px 14px; background: linear-gradient(90deg, rgba(0,229,255,.06), rgba(0,229,255,.01)); border: 1px solid rgba(0,229,255,.18); font-family: var(--ff-cn); font-size: 13px; color: var(--fg-secondary); line-height: 1.6; }
+  .q-intro b { color: var(--accent); font-weight: 500; }
+
+  .panel { background: var(--bg-panel); border: 1px solid var(--line-subtle); display: flex; flex-direction: column; overflow: hidden; min-height: 0; }
+  .panel-head { padding: var(--sp-3); font-family: var(--ff-data); font-size: 12px; letter-spacing: var(--tracking-wide); text-transform: uppercase; color: var(--fg-tertiary); border-bottom: 1px solid var(--line-subtle); display: flex; justify-content: space-between; align-items: center; }
+  .panel-body { padding: var(--sp-3); overflow: auto; flex: 1; }
+
+  .sample-row { display: grid; grid-template-columns: 90px 1fr 1fr 1fr 80px; gap: 8px; padding: 6px 8px; font-family: var(--ff-data); font-size: 12px; align-items: baseline; border-bottom: 1px solid var(--line-subtle); }
+  .sample-row.head { color: var(--fg-tertiary); text-transform: uppercase; letter-spacing: .08em; font-size: 11px; }
+  .sample-row .ts { color: var(--fg-tertiary); }
+  .sample-row .actual b { color: var(--fg-primary); }
+  .sample-row .pinn { color: var(--accent); }
+  .sample-row .delta { text-align: right; font-weight: 600; }
+  .sample-row .delta.ok { color: #5a8; }
+  .sample-row .delta.warn { color: #fb8; }
+  .sample-row .delta.crit { color: #f88; }
+  .sample-row .src { font-size: 10px; color: var(--fg-tertiary); text-transform: uppercase; letter-spacing: .05em; }
+  .sample-row.manual { background: rgba(124, 204, 255, .04); border-left: 2px solid var(--accent); }
+
+  .scatter-wrap { padding: 12px; }
+  .scatter-svg { width: 100%; height: auto; background: var(--bg-canvas); border: 1px solid var(--line-subtle); }
+  .scatter-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 10px; font-family: var(--ff-data); font-size: 12px; }
+  .scatter-stats .stat { padding: 8px 12px; background: var(--bg-canvas); border: 1px solid var(--line-subtle); }
+  .scatter-stats .stat .k { font-size: 10px; color: var(--fg-tertiary); text-transform: uppercase; letter-spacing: .1em; }
+  .scatter-stats .stat .v { font-size: 18px; color: var(--fg-primary); margin-top: 2px; }
+
+  .form-group { margin-bottom: 12px; }
+  .form-group label { display: block; font-family: var(--ff-data); font-size: 11px; color: var(--fg-tertiary); text-transform: uppercase; letter-spacing: .08em; margin-bottom: 4px; }
+  .form-group input, .form-group textarea { width: 100%; padding: 8px 10px; background: var(--bg-canvas); border: 1px solid var(--line-subtle); color: var(--fg-primary); font-family: var(--ff-data); font-size: 14px; font-variant-numeric: tabular-nums; }
+  .form-group input:focus { outline: none; border-color: var(--accent); }
+  .form-group textarea { font-family: var(--ff-cn); font-size: 13px; min-height: 60px; }
+  .submit-btn { width: 100%; padding: 12px; background: var(--accent); color: #001; border: 0; font-family: var(--ff-data); font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: .1em; cursor: pointer; }
+  .submit-btn:disabled { background: var(--bg-canvas); color: var(--fg-tertiary); cursor: not-allowed; }
+  .submit-btn:hover:not(:disabled) { background: #fff; }
+
+  .lvl-hint { padding: 8px 12px; background: rgba(255, 184, 77, .08); border: 1px solid #fb4; color: #fb8; font-family: var(--ff-cn); font-size: 12px; margin-bottom: 10px; }
+
+  @media (max-width: 1200px) { .q-canvas { grid-template-columns: 1fr 1fr; } .q-canvas .panel:nth-child(4) { grid-column: 1 / -1; } }
+  @media (max-width: 900px) { .q-canvas { grid-template-columns: 1fr; overflow-y: auto; } }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- TOPBAR -->
+  <header class="topbar">
+    <a href="../design.html" class="brand" style="text-decoration:none"><span class="brand-mark">PRINX</span> <span class="brand-name">HMI / <b>EXT-LINE</b></span></a>
+    <div class="row" style="margin-left: var(--sp-4);">
+      <span class="line-chip"><span class="line-chip-dot" style="background: var(--fg-tertiary);"></span><span>5# 胎面</span><span style="opacity:.5">TREAD</span></span>
+      <span class="line-chip active"><span class="line-chip-dot"></span><span>6# 胎侧</span><span style="opacity:.7">SIDEWALL</span></span>
+    </div>
+    <div class="topbar-spacer"></div>
+    <div class="topbar-meta">
+      <div class="topbar-meta-item"><span class="topbar-meta-label">SHIFT</span><span class="topbar-meta-value" id="topbar-shift">B 班</span></div>
+      <div class="topbar-meta-item"><span class="topbar-meta-label">STATUS</span><span class="badge badge-running">运行</span></div>
+      <div class="clock" id="clock">14:32:08</div>
+      <div class="user-chip"><div class="user-avatar" id="user-avatar">LZ</div><div class="user-chip-text"><b id="user-name">李振华</b><span id="user-level">LV2</span></div></div>
+    </div>
+  </header>
+
+  <!-- SIDENAV -->
+  <nav class="sidenav">
+    <a href="overview.html" class="nav-item"><svg viewBox="0 0 24 24" fill="none"><path d="M3 12 L12 4 L21 12 M5 10 V20 H19 V10" stroke="currentColor" stroke-width="1.5"/></svg><span class="nav-item-label">主页</span></a>
+    <a href="recipe.html" class="nav-item"><svg viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="7" height="7" stroke="currentColor" stroke-width="1.5"/><rect x="14" y="3" width="7" height="7" stroke="currentColor" stroke-width="1.5"/><rect x="3" y="14" width="7" height="7" stroke="currentColor" stroke-width="1.5"/><rect x="14" y="14" width="7" height="7" stroke="currentColor" stroke-width="1.5"/></svg><span class="nav-item-label">配方</span></a>
+    <a href="control.html" class="nav-item"><svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.5"/><path d="M12 2 V5 M12 19 V22 M2 12 H5 M19 12 H22" stroke="currentColor" stroke-width="1.5"/></svg><span class="nav-item-label">闭环</span></a>
+    <a href="alarm.html" class="nav-item"><svg viewBox="0 0 24 24" fill="none"><path d="M12 2 L2 22 H22 L12 2 Z" stroke="currentColor" stroke-width="1.5"/><path d="M12 9 V14 M12 17 V18" stroke="currentColor" stroke-width="1.5"/></svg><span class="nav-item-label">报警</span></a>
+    <a href="trend.html" class="nav-item"><svg viewBox="0 0 24 24" fill="none"><path d="M3 17 L9 11 L13 15 L21 7" stroke="currentColor" stroke-width="1.5"/><path d="M15 7 H21 V13" stroke="currentColor" stroke-width="1.5"/></svg><span class="nav-item-label">趋势</span></a>
+    <a href="temperature.html" class="nav-item"><svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.5"/><path d="M12 2 V5 M12 19 V22 M22 12 H19 M5 12 H2" stroke="currentColor" stroke-width="1.5"/></svg><span class="nav-item-label">温控</span></a>
+    <a href="process.html" class="nav-item"><svg viewBox="0 0 24 24" fill="none"><path d="M3 12 H8 L10 6 L14 18 L16 12 H21" stroke="currentColor" stroke-width="1.5"/></svg><span class="nav-item-label">工艺</span></a>
+    <a href="quality.html" class="nav-item active"><svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.5"/><path d="M8 12 L11 15 L16 9" stroke="currentColor" stroke-width="1.5" fill="none"/></svg><span class="nav-item-label">质量</span></a>
+    <a href="mes.html" class="nav-item"><svg viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="18" height="18" stroke="currentColor" stroke-width="1.5"/><path d="M3 9 H21 M9 3 V21" stroke="currentColor" stroke-width="1.5"/></svg><span class="nav-item-label">MES</span></a>
+    <a href="maintenance.html" class="nav-item"><svg viewBox="0 0 24 24" fill="none"><path d="M14 7 L17 4 L20 7 L17 10 Z" stroke="currentColor" stroke-width="1.5"/><path d="M14 7 L4 17 V20 H7 L17 10" stroke="currentColor" stroke-width="1.5"/></svg><span class="nav-item-label">维护</span></a>
+    <a href="report.html" class="nav-item"><svg viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="18" height="18" stroke="currentColor" stroke-width="1.5"/><path d="M7 9 H17 M7 13 H17 M7 17 H13" stroke="currentColor" stroke-width="1.5"/></svg><span class="nav-item-label">报表</span></a>
+    <a href="training.html" class="nav-item"><svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.5"/><path d="M8 12 L11 15 L16 9" stroke="currentColor" stroke-width="1.5" fill="none"/></svg><span class="nav-item-label">训练</span></a>
+  </nav>
+
+  <main class="q-canvas">
+    <div class="q-intro">
+      <span style="color:var(--accent);font-size:16px;margin-right:6px">→</span>
+      实物抽样实测值 vs <b>PINN 模型预测</b>对比 — 偏差小说明模型准。LV2+ 操作员可手动录入抽检数据；自动抽样每分钟 1 次（demo 加速）。
+    </div>
+
+    <!-- LEFT: 抽样列表 -->
+    <section class="panel">
+      <div class="panel-head"><span>抽样历史 · 最近 50 条</span><span id="qa-count" class="corner-mark">0 条</span></div>
+      <div class="panel-body" id="sample-list">
+        <div class="sample-row head">
+          <span>时间</span><span>实测厚度</span><span>PINN 预测</span><span>偏差</span><span>来源</span>
+        </div>
+        <div id="sample-rows"><div style="padding:24px;text-align:center;color:var(--fg-tertiary);font-family:var(--ff-data);font-size:12px">等待抽样...</div></div>
+      </div>
+    </section>
+
+    <!-- CENTER: 散点图 -->
+    <section class="panel">
+      <div class="panel-head"><span>实测 vs PINN 散点</span><span class="corner-mark">理想 y=x</span></div>
+      <div class="panel-body">
+        <div class="scatter-wrap">
+          <svg class="scatter-svg" id="scatter" viewBox="0 0 400 400"></svg>
+          <div class="scatter-stats">
+            <div class="stat"><div class="k">样本数 N</div><div class="v" id="stat-n">0</div></div>
+            <div class="stat"><div class="k">平均偏差 %</div><div class="v" id="stat-bias">--</div></div>
+            <div class="stat"><div class="k">RMSE (mm)</div><div class="v" id="stat-rmse">--</div></div>
+            <div class="stat"><div class="k">最大偏差 %</div><div class="v" id="stat-max">--</div></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- RIGHT: 手录表单 -->
+    <section class="panel">
+      <div class="panel-head"><span>手动录入抽检</span><span class="corner-mark">LV2+</span></div>
+      <div class="panel-body">
+        <div class="lvl-hint" id="lvl-hint" style="display:none">⚠ 当前账号权限不足 (需 LV2+)</div>
+        <div class="form-group">
+          <label>厚度 (mm)</label>
+          <input type="number" step="0.001" id="f-thickness" placeholder="e.g. 3.420">
+        </div>
+        <div class="form-group">
+          <label>宽度 (mm)</label>
+          <input type="number" step="0.1" id="f-width" placeholder="e.g. 165.0">
+        </div>
+        <div class="form-group">
+          <label>线重 (kg/m)</label>
+          <input type="number" step="0.001" id="f-weight" placeholder="e.g. 0.750">
+        </div>
+        <div class="form-group">
+          <label>备注</label>
+          <textarea id="f-notes" placeholder="如有异常，请简述..."></textarea>
+        </div>
+        <button class="submit-btn" id="f-submit">✓ 提交抽检</button>
+        <div style="margin-top:10px;font-size:11px;color:var(--fg-tertiary);font-family:var(--ff-data);line-height:1.5">
+          提交后立即对比 PINN 当前预测值，偏差 &gt;3% 会标橙，&gt;5% 标红。<br>
+          条目按时间倒序进入左栏。
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<script src="../demo-mock.js?v=1777718035"></script>
+<script src="../live.js?v=1777718035"></script>
+<script>
+let samples = [];
+
+async function loadSamples() {
+  try {
+    samples = await PRINX.api.get('/api/quality/samples?limit=50');
+    renderList(); renderScatter(); renderStats();
+  } catch (e) { console.warn('samples load failed', e); }
+}
+
+function fmtTime(ts) { return new Date(ts).toTimeString().slice(0, 8); }
+
+function renderList() {
+  const host = document.getElementById('sample-rows');
+  document.getElementById('qa-count').textContent = samples.length + ' 条';
+  if (!samples.length) { host.innerHTML = '<div style="padding:24px;text-align:center;color:var(--fg-tertiary);font-family:var(--ff-data);font-size:12px">等待抽样...</div>'; return; }
+  host.innerHTML = samples.map(s => {
+    const d = Math.abs(s.delta_pct);
+    const cls = d > 5 ? 'crit' : d > 3 ? 'warn' : 'ok';
+    const src = s.source === 'manual' ? '手录' : '自动';
+    return `<div class="sample-row ${s.source === 'manual' ? 'manual' : ''}">
+      <span class="ts">${fmtTime(s.ts)}</span>
+      <span class="actual"><b>${s.thickness_actual.toFixed(2)}</b> mm</span>
+      <span class="pinn">${s.pinn_thickness.toFixed(2)} mm</span>
+      <span class="delta ${cls}">${s.delta_pct >= 0 ? '+' : ''}${s.delta_pct.toFixed(2)}%</span>
+      <span class="src">${src}</span>
+    </div>`;
+  }).join('');
+}
+
+function renderScatter() {
+  const svg = document.getElementById('scatter');
+  if (samples.length < 2) { svg.innerHTML = '<text x="200" y="200" fill="#456" font-family="monospace" text-anchor="middle">需要至少 2 条数据</text>'; return; }
+  const all = samples.map(s => [s.pinn_thickness, s.thickness_actual]).flat();
+  const lo = Math.min(...all) - 0.05;
+  const hi = Math.max(...all) + 0.05;
+  const span = hi - lo;
+  const w = 400, h = 400, pad = 40;
+  const x = (v) => pad + ((v - lo) / span) * (w - 2*pad);
+  const y = (v) => h - pad - ((v - lo) / span) * (h - 2*pad);
+  let parts = `<rect width="${w}" height="${h}" fill="#0a141c"/>`;
+  // grid
+  for (let i = 0; i <= 4; i++) {
+    const t = lo + (span * i / 4);
+    parts += `<line x1="${pad}" y1="${y(t)}" x2="${w-pad}" y2="${y(t)}" stroke="#1a2a3a" stroke-width="0.5"/>`;
+    parts += `<line x1="${x(t)}" y1="${pad}" x2="${x(t)}" y2="${h-pad}" stroke="#1a2a3a" stroke-width="0.5"/>`;
+    parts += `<text x="${pad-6}" y="${y(t)+3}" fill="#456" font-size="9" text-anchor="end" font-family="monospace">${t.toFixed(2)}</text>`;
+    parts += `<text x="${x(t)}" y="${h-pad+12}" fill="#456" font-size="9" text-anchor="middle" font-family="monospace">${t.toFixed(2)}</text>`;
+  }
+  // y=x diagonal
+  parts += `<line x1="${x(lo)}" y1="${y(lo)}" x2="${x(hi)}" y2="${y(hi)}" stroke="#7cf" stroke-width="1" stroke-dasharray="3,3" opacity=".5"/>`;
+  // axis labels
+  parts += `<text x="${w/2}" y="${h-8}" fill="#789" font-size="11" text-anchor="middle" font-family="monospace">PINN PREDICTED  (mm)</text>`;
+  parts += `<text x="14" y="${h/2}" fill="#789" font-size="11" text-anchor="middle" font-family="monospace" transform="rotate(-90 14 ${h/2})">ACTUAL  (mm)</text>`;
+  // points
+  for (const s of samples) {
+    const px = x(s.pinn_thickness), py = y(s.thickness_actual);
+    const d = Math.abs(s.delta_pct);
+    const c = d > 5 ? '#f88' : d > 3 ? '#fb8' : '#8fc';
+    const r = s.source === 'manual' ? 4 : 2.5;
+    parts += `<circle cx="${px}" cy="${py}" r="${r}" fill="${c}" opacity=".75"/>`;
+  }
+  svg.innerHTML = parts;
+}
+
+function renderStats() {
+  document.getElementById('stat-n').textContent = samples.length;
+  if (samples.length === 0) return;
+  const bias = samples.reduce((s, x) => s + x.delta_pct, 0) / samples.length;
+  const rmse = Math.sqrt(samples.reduce((s, x) => s + Math.pow(x.thickness_actual - x.pinn_thickness, 2), 0) / samples.length);
+  const max = Math.max(...samples.map(x => Math.abs(x.delta_pct)));
+  document.getElementById('stat-bias').textContent = (bias >= 0 ? '+' : '') + bias.toFixed(2) + '%';
+  document.getElementById('stat-rmse').textContent = rmse.toFixed(3);
+  document.getElementById('stat-max').textContent = max.toFixed(2) + '%';
+}
+
+// Realtime: listen sampling_event
+PRINX.onSampling = (fn) => PRINX.listeners.sampling.push(fn);
+window.addEventListener('load', () => {
+  loadSamples();
+  // periodic refresh in case events missed
+  setInterval(loadSamples, 8000);
+});
+
+// Form submit
+document.getElementById('f-submit').addEventListener('click', async () => {
+  const u = PRINX.user();
+  if (!u || u.level < 2) { alert('权限不足，需 LV2+'); return; }
+  const body = {
+    operator: u.name,
+    thickness: parseFloat(document.getElementById('f-thickness').value),
+    width: parseFloat(document.getElementById('f-width').value),
+    weight: parseFloat(document.getElementById('f-weight').value),
+    notes: document.getElementById('f-notes').value,
+  };
+  if (isNaN(body.thickness) || body.thickness < 1 || body.thickness > 10) { alert('厚度需在 1–10 mm'); return; }
+  try {
+    await PRINX.api.post('/api/quality/samples', body);
+    document.getElementById('f-thickness').value = '';
+    document.getElementById('f-width').value = '';
+    document.getElementById('f-weight').value = '';
+    document.getElementById('f-notes').value = '';
+    await loadSamples();
+  } catch (e) { alert('提交失败: ' + e.message); }
+});
+
+// Hide form for LV1
+window.addEventListener('load', () => setTimeout(() => {
+  const u = PRINX.user();
+  if (!u || u.level < 2) {
+    document.getElementById('lvl-hint').style.display = 'block';
+    ['f-thickness','f-width','f-weight','f-notes','f-submit'].forEach(id => { const el = document.getElementById(id); if (el) el.disabled = true; });
+  }
+}, 1500));
+</script>
+</body>
+</html>
