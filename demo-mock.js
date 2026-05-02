@@ -253,10 +253,13 @@
   function deriveTargets() {
     const t = {};
     // 1. SP 直接驱动同名 PV (SP→PV 一阶滞后追随)
-    //    EXT-T.SPEED.SP → EXT-T.SPEED 等
+    //    EXT-T.SPEED.SP → EXT-T.SPEED ; TT-DIE-T.SP → TT-DIE-T.PV
     for (const sig of SIGNALS) {
       if (sig.kind !== 'sp') continue;
-      const pvTag = sig.tag.replace(/\.SP$/, '.PV').replace(/\.SPEED\.SP$/, '.SPEED');
+      let pvTag;
+      if (sig.tag.endsWith('.SPEED.SP')) pvTag = sig.tag.replace(/\.SP$/, '');
+      else if (sig.tag.endsWith('.SP')) pvTag = sig.tag.replace(/\.SP$/, '.PV');
+      else continue;
       if (state[pvTag]) t[pvTag] = SETPOINTS[sig.tag] ?? state[pvTag].value;
     }
     // 2. 模头温度按 SP 跟随（已含在 1）
