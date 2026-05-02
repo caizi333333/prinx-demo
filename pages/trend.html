@@ -6,81 +6,117 @@
 <title>趋势 / 6#胎侧 — PRINX HMI</title>
 <link rel="stylesheet" href="../style.css?v=15">
 <style>
-  .stub-canvas {
+  /* Hide right KPI bar — main+thumb layout claims that 280px */
+  .app.no-kpibar { grid-template-columns: var(--sidenav-w) 1fr 0 !important; }
+  .app.no-kpibar .kpibar { display: none !important; }
+
+  .trend-canvas {
     display: grid;
-    gap: var(--sp-3);
-    height: 100%;
-    grid-template-rows: auto 1fr;
-  }
-  .stub-grid {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    grid-template-rows: 1fr 1fr;
     gap: var(--sp-2);
     height: 100%;
+    grid-template-rows: auto 1fr;
     min-height: 0;
   }
-  .stub-tile {
+  .trend-controls {
+    display: flex; align-items: center; gap: 6px;
+    padding: 0 var(--sp-1);
+  }
+  .trend-controls .chip { padding: 5px 12px; font-size: 11px; cursor: pointer; }
+  .trend-controls .chip.active { background: var(--accent); color: #001218; border-color: var(--accent); }
+  .tw-bar { display: flex; align-items: center; gap: 6px; margin-left: auto; }
+
+  .trend-main-grid {
+    display: grid;
+    grid-template-columns: 1fr 320px;
+    gap: var(--sp-2);
+    min-height: 0;
+  }
+
+  /* MAIN PANEL */
+  .trend-main-panel {
     background: var(--bg-panel);
     border: 1px solid var(--line-subtle);
-    padding: 12px 16px 10px;
     display: grid;
     grid-template-rows: auto 1fr auto;
-    gap: 6px;
-    position: relative;
-    overflow: hidden;
+    padding: 14px 18px 12px;
+    gap: 10px;
     min-height: 0;
+    overflow: hidden;
   }
-  .stub-tile-head {
-    display: flex;
-    justify-content: space-between;
-    align-items: baseline;
-    gap: 12px;
+  .main-head {
+    display: flex; align-items: baseline; justify-content: space-between; gap: 16px;
   }
-  .stub-tile-title {
-    font-family: var(--ff-cn);
-    font-size: 14px;
-    font-weight: 500;
-    color: var(--fg-primary);
-    letter-spacing: 0.02em;
-  }
-  .stub-tile-tag {
-    font-family: var(--ff-data);
-    font-size: 10px;
-    color: var(--fg-tertiary);
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
-  }
-  .trend-chart {
+  .main-head .title { font-family: var(--ff-cn); font-size: 17px; font-weight: 500; color: var(--fg-primary); }
+  .main-head .tag { font-family: var(--ff-data); font-size: 11px; color: var(--fg-tertiary); letter-spacing: .12em; text-transform: uppercase; }
+  .main-head .stats { display: flex; gap: 16px; font-family: var(--ff-data); font-size: 11px; color: var(--fg-tertiary); }
+  .main-head .stats b { color: var(--fg-primary); margin-left: 4px; font-variant-numeric: tabular-nums; }
+
+  .trend-main {
     width: 100%; height: 100%; min-height: 0;
     background: #050b12;
     border: 1px solid #131e2a;
+    display: block;
   }
-  .trend-legend {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 4px 12px;
-    font-family: var(--ff-data);
-    font-size: 11px;
-    color: var(--fg-secondary);
-    letter-spacing: 0.04em;
+
+  .main-legend {
+    display: flex; flex-wrap: wrap; gap: 6px 18px;
+    font-family: var(--ff-data); font-size: 12px;
+    color: var(--fg-secondary); padding-top: 4px;
+    border-top: 1px solid var(--line-subtle);
   }
-  .trend-legend .leg { display: inline-flex; align-items: baseline; gap: 4px; }
-  .trend-legend .dot {
-    display: inline-block; width: 7px; height: 2px;
-    margin-right: 2px;
-    vertical-align: middle;
+  .main-legend .leg { display: inline-flex; align-items: baseline; gap: 5px; }
+  .main-legend .dot { display: inline-block; width: 10px; height: 3px; vertical-align: middle; }
+  .main-legend .leg b { color: var(--fg-primary); font-weight: 500; font-variant-numeric: tabular-nums; min-width: 44px; }
+  .main-legend .leg .lbl { color: var(--fg-tertiary); }
+
+  /* THUMB RAIL */
+  .trend-thumb-rail {
+    display: grid;
+    grid-template-rows: repeat(5, 1fr);
+    gap: var(--sp-2);
+    min-height: 0;
   }
-  .trend-legend .leg b { color: var(--fg-primary); font-weight: 500; font-variant-numeric: tabular-nums; }
-  .trend-legend .leg .lbl { color: var(--fg-tertiary); }
-  .tw-bar { display: flex; align-items: center; gap: 6px; }
-  .tw-bar .chip { padding: 4px 10px; font-size: 11px; cursor: pointer; }
-  .tw-bar .chip.active { background: var(--accent); color: #001218; border-color: var(--accent); }
+  .thumb-card {
+    background: var(--bg-panel);
+    border: 1px solid var(--line-subtle);
+    padding: 9px 12px;
+    display: grid;
+    grid-template-rows: auto 1fr auto;
+    gap: 4px;
+    cursor: pointer;
+    transition: border-color .12s, background .12s;
+    overflow: hidden;
+    min-height: 0;
+    position: relative;
+  }
+  .thumb-card:hover { border-color: var(--fg-tertiary); }
+  .thumb-card.active {
+    border-color: var(--accent);
+    background: linear-gradient(180deg, rgba(0,229,255,.04) 0%, transparent 100%);
+    box-shadow: inset 3px 0 0 var(--accent);
+  }
+  .thumb-card .head {
+    display: flex; align-items: baseline; justify-content: space-between; gap: 8px;
+  }
+  .thumb-card .name { font-family: var(--ff-cn); font-size: 13px; font-weight: 500; color: var(--fg-primary); letter-spacing: .02em; }
+  .thumb-card .ch { font-family: var(--ff-data); font-size: 10px; color: var(--fg-tertiary); letter-spacing: .08em; text-transform: uppercase; }
+  .thumb-card.active .name { color: var(--accent); }
+  .trend-thumb { width: 100%; height: 100%; min-height: 0; display: block; }
+  .thumb-card .last {
+    display: flex; flex-wrap: wrap; gap: 2px 10px;
+    font-family: var(--ff-data); font-size: 10px; color: var(--fg-tertiary);
+    font-variant-numeric: tabular-nums;
+  }
+  .thumb-card .last b { color: var(--fg-primary); font-weight: 500; }
+
+  @media (max-width: 1280px) {
+    .trend-main-grid { grid-template-columns: 1fr 280px; }
+  }
 </style>
 </head>
 <body>
 
-<div class="app">
+<div class="app no-kpibar">
 
   <!-- TOPBAR -->
   <header class="topbar">
@@ -171,77 +207,124 @@
       </div>
     </div>
 
-    <div class="stub-canvas">
-      
-      <div class="row gap-4" style="margin-bottom:var(--sp-2);align-items:center">
-        <span class="chip active">温度 · 23 ch</span>
-        <span class="chip">速度 · 4 ch</span>
-        <span class="chip">压力 · 8 ch</span>
-        <span class="chip">称重 · 2 ch</span>
-        <span class="chip">浮辊 · 9 ch</span>
-        <div class="tw-bar" style="margin-left:auto">
+    <div class="trend-canvas">
+      <div class="trend-controls">
+        <button class="chip active" data-group="0">温度</button>
+        <button class="chip" data-group="1">速度</button>
+        <button class="chip" data-group="2">压力</button>
+        <button class="chip" data-group="3">称重 + 测宽</button>
+        <button class="chip" data-group="4">浮动辊</button>
+        <div class="tw-bar">
           <span class="text-mute" style="font-size:11px;letter-spacing:.05em">时间窗</span>
           <button class="chip" data-tw="60">60s</button>
           <button class="chip active" data-tw="300">5min</button>
           <button class="chip" data-tw="1800">30min</button>
         </div>
       </div>
-      <div class="stub-grid">
-        <div class="stub-tile">
-          <div class="stub-tile-head">
-            <div class="stub-tile-title">模头温度 · 5 区</div>
-            <span class="stub-tile-tag">TT-DIE-* · °C</span>
+
+      <div class="trend-main-grid">
+        <!-- LEFT: main chart -->
+        <div class="trend-main-panel">
+          <div class="main-head">
+            <div>
+              <div class="title" id="main-title">模头温度 · 5 区</div>
+              <div class="tag" id="main-tag">TT-DIE-* · °C · 5 通道</div>
+            </div>
+            <div class="stats">
+              <span>采样 <b>1 Hz</b></span>
+              <span>窗口 <b id="main-tw">5 min</b></span>
+              <span>通道 <b id="main-ch">5</b></span>
+            </div>
           </div>
-          <svg class="trend-chart" data-trend="TT-DIE-T.PV,TT-DIE-TM.PV,TT-DIE-M.PV,TT-DIE-BM.PV,TT-DIE-B.PV" data-colors="#00E5FF,#7DD3FC,#A78BFA,#F59E0B,#10B981" viewBox="0 0 800 200" preserveAspectRatio="none"></svg>
-          <div class="trend-legend">
-            <span class="leg"><span class="dot" style="background:#00E5FF"></span><span class="lbl">上模</span> <b data-signal="TT-DIE-T.PV" data-precision="1">--</b></span>
-            <span class="leg"><span class="dot" style="background:#7DD3FC"></span><span class="lbl">上中</span> <b data-signal="TT-DIE-TM.PV" data-precision="1">--</b></span>
-            <span class="leg"><span class="dot" style="background:#A78BFA"></span><span class="lbl">中</span> <b data-signal="TT-DIE-M.PV" data-precision="1">--</b></span>
-            <span class="leg"><span class="dot" style="background:#F59E0B"></span><span class="lbl">下中</span> <b data-signal="TT-DIE-BM.PV" data-precision="1">--</b></span>
-            <span class="leg"><span class="dot" style="background:#10B981"></span><span class="lbl">下模</span> <b data-signal="TT-DIE-B.PV" data-precision="1">--</b></span>
-          </div>
+          <svg class="trend-main"
+               id="main-chart"
+               data-trend="TT-DIE-T.PV,TT-DIE-TM.PV,TT-DIE-M.PV,TT-DIE-BM.PV,TT-DIE-B.PV"
+               data-colors="#00E5FF,#7DD3FC,#A78BFA,#F59E0B,#10B981"
+               data-labels="上模,上中,中,下中,下模"
+               viewBox="0 0 800 360" preserveAspectRatio="none"></svg>
+          <div class="main-legend" id="main-legend"></div>
         </div>
 
-        <div class="stub-tile">
-          <div class="stub-tile-head">
-            <div class="stub-tile-title">挤出机转速 · 4 路</div>
-            <span class="stub-tile-tag">EXT-*.SPEED · RPM</span>
+        <!-- RIGHT: thumbnail rail -->
+        <div class="trend-thumb-rail">
+          <div class="thumb-card active" data-group="0"
+               data-trend="TT-DIE-T.PV,TT-DIE-TM.PV,TT-DIE-M.PV,TT-DIE-BM.PV,TT-DIE-B.PV"
+               data-colors="#00E5FF,#7DD3FC,#A78BFA,#F59E0B,#10B981"
+               data-labels="上模,上中,中,下中,下模"
+               data-title="模头温度 · 5 区"
+               data-tag="TT-DIE-* · °C · 5 通道">
+            <div class="head"><span class="name">模头温度</span><span class="ch">5 ch · °C</span></div>
+            <svg class="trend-thumb" data-trend="TT-DIE-T.PV,TT-DIE-TM.PV,TT-DIE-M.PV,TT-DIE-BM.PV,TT-DIE-B.PV" data-colors="#00E5FF,#7DD3FC,#A78BFA,#F59E0B,#10B981" viewBox="0 0 200 50" preserveAspectRatio="none"></svg>
+            <div class="last">
+              <span><span style="color:#00E5FF">●</span> <b data-signal="TT-DIE-T.PV" data-precision="1">--</b></span>
+              <span><span style="color:#7DD3FC">●</span> <b data-signal="TT-DIE-TM.PV" data-precision="1">--</b></span>
+              <span><span style="color:#A78BFA">●</span> <b data-signal="TT-DIE-M.PV" data-precision="1">--</b></span>
+              <span><span style="color:#F59E0B">●</span> <b data-signal="TT-DIE-BM.PV" data-precision="1">--</b></span>
+              <span><span style="color:#10B981">●</span> <b data-signal="TT-DIE-B.PV" data-precision="1">--</b></span>
+            </div>
           </div>
-          <svg class="trend-chart" data-trend="EXT-90.SPEED,EXT-T.SPEED,EXT-M.SPEED,EXT-B.SPEED" data-colors="#00E5FF,#7DD3FC,#A78BFA,#F59E0B" viewBox="0 0 800 200" preserveAspectRatio="none"></svg>
-          <div class="trend-legend">
-            <span class="leg"><span class="dot" style="background:#00E5FF"></span><span class="lbl">90</span> <b data-signal="EXT-90.SPEED" data-precision="1">--</b></span>
-            <span class="leg"><span class="dot" style="background:#7DD3FC"></span><span class="lbl">上</span> <b data-signal="EXT-T.SPEED" data-precision="1">--</b></span>
-            <span class="leg"><span class="dot" style="background:#A78BFA"></span><span class="lbl">中</span> <b data-signal="EXT-M.SPEED" data-precision="1">--</b></span>
-            <span class="leg"><span class="dot" style="background:#F59E0B"></span><span class="lbl">下</span> <b data-signal="EXT-B.SPEED" data-precision="1">--</b></span>
-          </div>
-        </div>
 
-        <div class="stub-tile">
-          <div class="stub-tile-head">
-            <div class="stub-tile-title">称重 + 测宽</div>
-            <span class="stub-tile-tag">SCL · WIDTH-REAR</span>
+          <div class="thumb-card" data-group="1"
+               data-trend="EXT-90.SPEED,EXT-T.SPEED,EXT-M.SPEED,EXT-B.SPEED"
+               data-colors="#00E5FF,#7DD3FC,#A78BFA,#F59E0B"
+               data-labels="90 挤出,上挤出,中挤出,下挤出"
+               data-title="挤出机转速 · 4 路"
+               data-tag="EXT-*.SPEED · RPM · 4 通道">
+            <div class="head"><span class="name">挤出机转速</span><span class="ch">4 ch · RPM</span></div>
+            <svg class="trend-thumb" data-trend="EXT-90.SPEED,EXT-T.SPEED,EXT-M.SPEED,EXT-B.SPEED" data-colors="#00E5FF,#7DD3FC,#A78BFA,#F59E0B" viewBox="0 0 200 50" preserveAspectRatio="none"></svg>
+            <div class="last">
+              <span><span style="color:#00E5FF">●</span> <b data-signal="EXT-90.SPEED" data-precision="1">--</b></span>
+              <span><span style="color:#7DD3FC">●</span> <b data-signal="EXT-T.SPEED" data-precision="1">--</b></span>
+              <span><span style="color:#A78BFA">●</span> <b data-signal="EXT-M.SPEED" data-precision="1">--</b></span>
+              <span><span style="color:#F59E0B">●</span> <b data-signal="EXT-B.SPEED" data-precision="1">--</b></span>
+            </div>
           </div>
-          <svg class="trend-chart" data-trend="SCL-FRONT.PV,SCL-REAR.PV,WIDTH-REAR.PV" data-colors="#00E5FF,#10B981,#F59E0B" data-multi-axis="1" viewBox="0 0 800 200" preserveAspectRatio="none"></svg>
-          <div class="trend-legend">
-            <span class="leg"><span class="dot" style="background:#00E5FF"></span><span class="lbl">前秤</span> <b data-signal="SCL-FRONT.PV" data-precision="3">--</b></span>
-            <span class="leg"><span class="dot" style="background:#10B981"></span><span class="lbl">后秤</span> <b data-signal="SCL-REAR.PV" data-precision="3">--</b></span>
-            <span class="leg"><span class="dot" style="background:#F59E0B"></span><span class="lbl">测宽</span> <b data-signal="WIDTH-REAR.PV" data-precision="1">--</b></span>
-          </div>
-        </div>
 
-        <div class="stub-tile">
-          <div class="stub-tile-head">
-            <div class="stub-tile-title">浮动辊压力 · 9 辊</div>
-            <span class="stub-tile-tag">FLT-*.PRESSURE · MPa</span>
+          <div class="thumb-card" data-group="2"
+               data-trend="PT-150T.PV,PT-150M.PV,PT-150B.PV,PT-90.PV"
+               data-colors="#00E5FF,#7DD3FC,#A78BFA,#F59E0B"
+               data-labels="上挤出,中挤出,下挤出,90 挤出"
+               data-title="熔体压力 · 4 路"
+               data-tag="PT-*.PV · MPa · 4 通道">
+            <div class="head"><span class="name">熔体压力</span><span class="ch">4 ch · MPa</span></div>
+            <svg class="trend-thumb" data-trend="PT-150T.PV,PT-150M.PV,PT-150B.PV,PT-90.PV" data-colors="#00E5FF,#7DD3FC,#A78BFA,#F59E0B" viewBox="0 0 200 50" preserveAspectRatio="none"></svg>
+            <div class="last">
+              <span><span style="color:#00E5FF">●</span> <b data-signal="PT-150T.PV" data-precision="1">--</b></span>
+              <span><span style="color:#7DD3FC">●</span> <b data-signal="PT-150M.PV" data-precision="1">--</b></span>
+              <span><span style="color:#A78BFA">●</span> <b data-signal="PT-150B.PV" data-precision="1">--</b></span>
+              <span><span style="color:#F59E0B">●</span> <b data-signal="PT-90.PV" data-precision="1">--</b></span>
+            </div>
           </div>
-          <svg class="trend-chart" data-trend="FLT-1.PRESSURE,FLT-3.PRESSURE,FLT-5.PRESSURE,FLT-6.PRESSURE,FLT-7.PRESSURE,FLT-8.PRESSURE,FLT-9.PRESSURE" data-colors="#94A3B8,#10B981,#7DD3FC,#F59E0B,#FB923C,#A78BFA,#F472B6" viewBox="0 0 800 200" preserveAspectRatio="none"></svg>
-          <div class="trend-legend">
-            <span class="leg"><span class="dot" style="background:#F59E0B"></span><span class="lbl">F-06</span> <b data-signal="FLT-6.PRESSURE" data-precision="2">--</b></span>
-            <span class="leg"><span class="dot" style="background:#10B981"></span><span class="lbl">F-03</span> <b data-signal="FLT-3.PRESSURE" data-precision="2">--</b></span>
-            <span class="leg"><span class="dot" style="background:#7DD3FC"></span><span class="lbl">F-05</span> <b data-signal="FLT-5.PRESSURE" data-precision="2">--</b></span>
-            <span class="leg"><span class="dot" style="background:#FB923C"></span><span class="lbl">F-07</span> <b data-signal="FLT-7.PRESSURE" data-precision="2">--</b></span>
-            <span class="leg"><span class="dot" style="background:#A78BFA"></span><span class="lbl">F-08</span> <b data-signal="FLT-8.PRESSURE" data-precision="2">--</b></span>
-            <span class="leg"><span class="dot" style="background:#F472B6"></span><span class="lbl">F-09</span> <b data-signal="FLT-9.PRESSURE" data-precision="2">--</b></span>
+
+          <div class="thumb-card" data-group="3"
+               data-trend="SCL-FRONT.PV,SCL-REAR.PV,WIDTH-REAR.PV"
+               data-colors="#00E5FF,#10B981,#F59E0B"
+               data-labels="前秤,后秤,测宽"
+               data-multi-axis="1"
+               data-title="称重 + 测宽"
+               data-tag="SCL · WIDTH-REAR · 多轴 · 3 通道">
+            <div class="head"><span class="name">称重 + 测宽</span><span class="ch">3 ch · 多轴</span></div>
+            <svg class="trend-thumb" data-trend="SCL-FRONT.PV,SCL-REAR.PV,WIDTH-REAR.PV" data-colors="#00E5FF,#10B981,#F59E0B" viewBox="0 0 200 50" preserveAspectRatio="none"></svg>
+            <div class="last">
+              <span><span style="color:#00E5FF">●</span> <b data-signal="SCL-FRONT.PV" data-precision="3">--</b></span>
+              <span><span style="color:#10B981">●</span> <b data-signal="SCL-REAR.PV" data-precision="3">--</b></span>
+              <span><span style="color:#F59E0B">●</span> <b data-signal="WIDTH-REAR.PV" data-precision="1">--</b></span>
+            </div>
+          </div>
+
+          <div class="thumb-card" data-group="4"
+               data-trend="FLT-1.PRESSURE,FLT-3.PRESSURE,FLT-5.PRESSURE,FLT-6.PRESSURE,FLT-7.PRESSURE,FLT-8.PRESSURE,FLT-9.PRESSURE"
+               data-colors="#94A3B8,#10B981,#7DD3FC,#F59E0B,#FB923C,#A78BFA,#F472B6"
+               data-labels="F-01,F-03,F-05,F-06,F-07,F-08,F-09"
+               data-title="浮动辊压力 · 7 辊采样"
+               data-tag="FLT-*.PRESSURE · MPa · 7 通道">
+            <div class="head"><span class="name">浮动辊压力</span><span class="ch">7 ch · MPa</span></div>
+            <svg class="trend-thumb" data-trend="FLT-1.PRESSURE,FLT-3.PRESSURE,FLT-5.PRESSURE,FLT-6.PRESSURE,FLT-7.PRESSURE,FLT-8.PRESSURE,FLT-9.PRESSURE" data-colors="#94A3B8,#10B981,#7DD3FC,#F59E0B,#FB923C,#A78BFA,#F472B6" viewBox="0 0 200 50" preserveAspectRatio="none"></svg>
+            <div class="last">
+              <span><span style="color:#F59E0B">●</span> F-06 <b data-signal="FLT-6.PRESSURE" data-precision="2">--</b></span>
+              <span><span style="color:#10B981">●</span> F-03 <b data-signal="FLT-3.PRESSURE" data-precision="2">--</b></span>
+              <span><span style="color:#7DD3FC">●</span> F-05 <b data-signal="FLT-5.PRESSURE" data-precision="2">--</b></span>
+            </div>
           </div>
         </div>
       </div>
@@ -303,7 +386,60 @@ function tick() {
 }
 tick(); setInterval(tick, 1000);
 </script>
-<script src="../demo-mock.js?v=1777724465"></script>
-<script src="../live.js?v=1777724465"></script>
+<script src="../demo-mock.js?v=1777732137"></script>
+<script src="../live.js?v=1777732137"></script>
+<script>
+// Group switching: chip + thumb click → swap main chart's data-trend
+const mainChart = document.getElementById('main-chart');
+const mainTitle = document.getElementById('main-title');
+const mainTag = document.getElementById('main-tag');
+const mainCh = document.getElementById('main-ch');
+const mainTw = document.getElementById('main-tw');
+const mainLegend = document.getElementById('main-legend');
+
+function switchGroup(idx) {
+  const card = document.querySelector(`.thumb-card[data-group="${idx}"]`);
+  if (!card) return;
+  // Highlight current chip + thumb
+  document.querySelectorAll('.trend-controls .chip[data-group]').forEach(b => b.classList.toggle('active', b.dataset.group === String(idx)));
+  document.querySelectorAll('.thumb-card').forEach(c => c.classList.toggle('active', c.dataset.group === String(idx)));
+  // Swap main chart attrs
+  mainChart.dataset.trend = card.dataset.trend;
+  mainChart.dataset.colors = card.dataset.colors;
+  mainChart.dataset.labels = card.dataset.labels;
+  if (card.dataset.multiAxis) mainChart.dataset.multiAxis = card.dataset.multiAxis;
+  else delete mainChart.dataset.multiAxis;
+  // Header
+  mainTitle.textContent = card.dataset.title;
+  mainTag.textContent = card.dataset.tag;
+  mainCh.textContent = card.dataset.trend.split(',').length;
+  // Build new legend
+  const tags = card.dataset.trend.split(',');
+  const colors = card.dataset.colors.split(',');
+  const labels = card.dataset.labels.split(',');
+  mainLegend.innerHTML = tags.map((tag, i) => {
+    const dec = tag.endsWith('SCL-FRONT.PV') || tag.endsWith('SCL-REAR.PV') ? 3 : (tag.includes('TT-') || tag.includes('SPEED') ? 1 : 2);
+    return `<span class="leg"><span class="dot" style="background:${colors[i]}"></span><span class="lbl">${labels[i]}</span> <b data-signal="${tag}" data-precision="${dec}">--</b></span>`;
+  }).join('');
+}
+
+document.addEventListener('click', (e) => {
+  const t = e.target.closest('[data-group]');
+  if (!t) return;
+  const g = t.dataset.group;
+  if (g) switchGroup(g);
+});
+
+// Time window selector also updates main-tw label
+document.addEventListener('click', (e) => {
+  const t = e.target.closest('[data-tw]');
+  if (!t) return;
+  const sec = parseInt(t.dataset.tw, 10);
+  mainTw.textContent = sec >= 60 ? `${Math.floor(sec/60)} min` : `${sec} s`;
+});
+
+// Initialize legend for default group (0 = 温度)
+switchGroup(0);
+</script>
 </body>
 </html>

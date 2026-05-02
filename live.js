@@ -295,8 +295,189 @@
 
   function renderAllTrendCharts() {
     document.querySelectorAll('svg.trend-chart[data-trend]').forEach(renderTrendChart);
+    document.querySelectorAll('svg.trend-main[data-trend]').forEach(renderMainTrend);
+    document.querySelectorAll('svg.trend-thumb[data-trend]').forEach(renderThumbTrend);
   }
   setInterval(renderAllTrendCharts, 1000);
+
+  // ─── Main Trend Chart (large, with crosshair + value label) ─────────
+
+  function renderMainTrend(svg) {
+    const tagsCsv = svg.dataset.trend;
+    if (!tagsCsv) return;
+    const tags = tagsCsv.split(',').map(s => s.trim());
+    const colors = (svg.dataset.colors || '').split(',').map(s => s.trim());
+    const labels = (svg.dataset.labels || '').split(',').map(s => s.trim());
+    const multiAxis = svg.dataset.multiAxis === '1';
+    const w = 800, h = 360, padL = 50, padR = 90, padT = 18, padB = 28;
+    const now = Date.now();
+    const winMs = trendWindowSec * 1000;
+    const fromMs = now - winMs;
+
+    const seriesList = tags.map((tag, i) => {
+      const arr = (sigHistory.get(tag) || []).filter(p => p.ts >= fromMs);
+      return { tag, color: colors[i] || '#7cf', label: labels[i] || tag, points: arr };
+    });
+
+    let parts = `<rect width="${w}" height="${h}" fill="#050b12"/>`;
+    if (!seriesList.some(s => s.points.length >= 2)) {
+      parts += `<text x="${w/2}" y="${h/2}" fill="#3a4a5a" font-family="var(--ff-data,monospace)" font-size="13" text-anchor="middle" letter-spacing="0.08em">SAMPLING…  收集数据中（约 ${trendWindowSec}s）</text>`;
+      svg.innerHTML = parts;
+      return;
+    }
+
+    let yMin = Infinity, yMax = -Infinity;
+    if (!multiAxis) {
+      for (const s of seriesList) for (const p of s.points) { if (p.value < yMin) yMin = p.value; if (p.value > yMax) yMax = p.value; }
+      const yPad = (yMax - yMin) * 0.18 || 0.5;
+      yMin -= yPad; yMax += yPad;
+    }
+
+    const innerW = w - padL - padR, innerH = h - padT - padB;
+    const xAt = (ts) => padL + ((ts - fromMs) / winMs) * innerW;
+    function yAtFor(value, sIdx) {
+      let lo, hi;
+      if (multiAxis) {
+        const arr = seriesList[sIdx].points;
+        lo = Math.min(...arr.map(p => p.value)); hi = Math.max(...arr.map(p => p.value));
+        const pad = (hi - lo) * 0.2 || 0.5; lo -= pad; hi += pad;
+      } else { lo = yMin; hi = yMax; }
+      return h - padB - ((value - lo) / (hi - lo)) * innerH;
+    }
+
+    // Soft horizontal grid (5 lines)
+    for (let i = 1; i < 5; i++) {
+      const ly = padT + (innerH / 5) * i;
+      parts += `<line x1="${padL}" y1="${ly}" x2="${w-padR}" y2="${ly}" stroke="#0f1c2a" stroke-width="0.6"/>`;
+    }
+    // Y-axis labels (6 ticks)
+    if (!multiAxis) {
+      const decimals = (yMax - yMin) < 5 ? 2 : (yMax - yMin) < 50 ? 1 : 0;
+      for (let i = 0; i <= 5; i++) {
+        const v = yMax - ((yMax - yMin) / 5) * i;
+        const ly = padT + (innerH / 5) * i;
+        parts += `<text x="${padL-7}" y="${ly+3}" fill="#5a6a7a" font-size="10" text-anchor="end" font-family="var(--ff-data,monospace)" font-variant-numeric="tabular-nums">${v.toFixed(decimals)}</text>`;
+      }
+    }
+    // X-axis tick labels (5)
+    for (let i = 0; i <= 5; i++) {
+      const x = padL + (innerW / 5) * i;
+      const tsHere = fromMs + (winMs / 5) * i;
+      const secAgo = Math.round((now - tsHere) / 1000);
+      const lbl = secAgo <= 1 ? 'now' : (secAgo >= 60 ? `-${Math.round(secAgo/60)}m` : `-${secAgo}s`);
+      parts += `<text x="${x}" y="${h-7}" fill="#5a6a7a" font-size="10" text-anchor="middle" font-family="var(--ff-data,monospace)">${lbl}</text>`;
+    }
+    // Axis lines
+    parts += `<line x1="${padL}" y1="${padT}" x2="${padL}" y2="${h-padB}" stroke="#1a2a3a" stroke-width="0.8"/>`;
+    parts += `<line x1="${padL}" y1="${h-padB}" x2="${w-padR}" y2="${h-padB}" stroke="#1a2a3a" stroke-width="0.8"/>`;
+
+    // Series polylines + last value label
+    for (let i = 0; i < seriesList.length; i++) {
+      const s = seriesList[i]; if (s.points.length < 2) continue;
+      const pts = s.points.map(p => `${xAt(p.ts).toFixed(1)},${yAtFor(p.value, i).toFixed(1)}`).join(' ');
+      parts += `<polyline points="${pts}" fill="none" stroke="${s.color}" stroke-width="1.7" stroke-linejoin="round" stroke-linecap="round"/>`;
+      const last = s.points[s.points.length - 1];
+      const lx = xAt(last.ts), ly = yAtFor(last.value, i);
+      // Last point dot + glow + value label on right edge
+      parts += `<circle cx="${lx.toFixed(1)}" cy="${ly.toFixed(1)}" r="4" fill="${s.color}" opacity="0.18"/>`;
+      parts += `<circle cx="${lx.toFixed(1)}" cy="${ly.toFixed(1)}" r="2" fill="${s.color}"/>`;
+      // value label (right side, color matches series)
+      const dec = Math.abs(last.value) > 100 ? 1 : 2;
+      const labelY = Math.max(padT + 8, Math.min(h - padB - 4, ly + 3));
+      parts += `<text x="${w-padR+6}" y="${labelY.toFixed(1)}" fill="${s.color}" font-size="11" font-family="var(--ff-data,monospace)" font-variant-numeric="tabular-nums" font-weight="600">${last.value.toFixed(dec)}</text>`;
+    }
+
+    svg.innerHTML = parts;
+
+    // Hover crosshair (one-time bind)
+    if (!svg.dataset.crosshair) {
+      svg.dataset.crosshair = '1';
+      const overlay = document.createElement('div');
+      overlay.className = 'trend-tooltip';
+      overlay.style.cssText = 'position:absolute;display:none;background:#001218;border:1px solid #3a557a;color:#cfe;padding:6px 10px;font-family:var(--ff-data,monospace);font-size:11px;line-height:1.6;letter-spacing:.05em;pointer-events:none;z-index:5;box-shadow:0 4px 12px rgba(0,0,0,.5);white-space:nowrap;';
+      svg.parentElement.style.position = 'relative';
+      svg.parentElement.appendChild(overlay);
+      svg.addEventListener('mousemove', (e) => {
+        const rect = svg.getBoundingClientRect();
+        const sx = (e.clientX - rect.left) * (w / rect.width);
+        const sy = (e.clientY - rect.top) * (h / rect.height);
+        if (sx < padL || sx > w - padR) { overlay.style.display = 'none'; clearCrosshair(svg); return; }
+        const tsAt = fromMs + ((sx - padL) / innerW) * winMs;
+        // Build tooltip content
+        let tipLines = [`<span style="color:#789">${new Date(tsAt).toTimeString().slice(0,8)}</span>`];
+        const seriesNow = (svg.__lastSeries || seriesList);
+        for (const s of seriesNow) {
+          if (s.points.length < 1) continue;
+          // nearest point
+          let np = s.points[0], nd = Math.abs(s.points[0].ts - tsAt);
+          for (const p of s.points) { const d = Math.abs(p.ts - tsAt); if (d < nd) { nd = d; np = p; } }
+          tipLines.push(`<span style="color:${s.color}">●</span> ${s.label}  <b style="color:${s.color}">${np.value.toFixed(2)}</b>`);
+        }
+        overlay.innerHTML = tipLines.join('<br>');
+        overlay.style.display = 'block';
+        const ovw = overlay.offsetWidth || 160;
+        overlay.style.left = (Math.min(rect.width - ovw - 4, e.clientX - rect.left + 12)) + 'px';
+        overlay.style.top = (e.clientY - rect.top + 12) + 'px';
+        drawCrosshair(svg, sx, w, h, padL, padR, padT, padB);
+      });
+      svg.addEventListener('mouseleave', () => { overlay.style.display = 'none'; clearCrosshair(svg); });
+    }
+    svg.__lastSeries = seriesList;
+  }
+
+  function drawCrosshair(svg, sx, w, h, padL, padR, padT, padB) {
+    let line = svg.querySelector('line.crosshair');
+    if (!line) {
+      line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+      line.setAttribute('class', 'crosshair');
+      line.setAttribute('stroke', '#7cf');
+      line.setAttribute('stroke-width', '0.8');
+      line.setAttribute('stroke-dasharray', '3,3');
+      line.setAttribute('opacity', '0.6');
+      svg.appendChild(line);
+    }
+    line.setAttribute('x1', sx);
+    line.setAttribute('x2', sx);
+    line.setAttribute('y1', padT);
+    line.setAttribute('y2', h - padB);
+  }
+  function clearCrosshair(svg) {
+    const line = svg.querySelector('line.crosshair');
+    if (line) line.remove();
+  }
+
+  // ─── Thumbnail Trend Chart (small, no axes) ────────────────────────
+
+  function renderThumbTrend(svg) {
+    const tagsCsv = svg.dataset.trend;
+    if (!tagsCsv) return;
+    const tags = tagsCsv.split(',').map(s => s.trim());
+    const colors = (svg.dataset.colors || '').split(',').map(s => s.trim());
+    const w = 200, h = 50;
+    const now = Date.now();
+    const winMs = trendWindowSec * 1000;
+    const fromMs = now - winMs;
+    const seriesList = tags.map((tag, i) => {
+      const arr = (sigHistory.get(tag) || []).filter(p => p.ts >= fromMs);
+      return { color: colors[i] || '#7cf', points: arr };
+    });
+    let parts = `<rect width="${w}" height="${h}" fill="transparent"/>`;
+    if (!seriesList.some(s => s.points.length >= 2)) {
+      parts += `<text x="${w/2}" y="${h/2+3}" fill="#3a4a5a" font-family="var(--ff-data,monospace)" font-size="9" text-anchor="middle" letter-spacing=".05em">…</text>`;
+      svg.innerHTML = parts; return;
+    }
+    let yMin = Infinity, yMax = -Infinity;
+    for (const s of seriesList) for (const p of s.points) { if (p.value < yMin) yMin = p.value; if (p.value > yMax) yMax = p.value; }
+    const yPad = (yMax - yMin) * 0.15 || 0.5; yMin -= yPad; yMax += yPad;
+    const xAt = (ts) => ((ts - fromMs) / winMs) * w;
+    const yAt = (v) => h - ((v - yMin) / (yMax - yMin)) * h;
+    for (const s of seriesList) {
+      if (s.points.length < 2) continue;
+      const pts = s.points.map(p => `${xAt(p.ts).toFixed(1)},${yAt(p.value).toFixed(1)}`).join(' ');
+      parts += `<polyline points="${pts}" fill="none" stroke="${s.color}" stroke-width="1" stroke-linejoin="round" opacity="0.9"/>`;
+    }
+    svg.innerHTML = parts;
+  }
 
   // Time window switcher
   document.addEventListener('click', (e) => {
