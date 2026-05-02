@@ -689,16 +689,24 @@
       border: 1px solid #3a557a; box-shadow: 0 6px 20px rgba(0,0,0,.5);
     `;
     panel.innerHTML = `
-      <div style="margin-bottom:8px;color:#7cf;letter-spacing:.15em;text-transform:uppercase">演示控制</div>
-      <div style="margin-bottom:6px;color:#9ab;line-height:1.4">所有数据由浏览器模拟生成。下方按钮可即时触发事件。</div>
-      <button data-act="alarm" style="width:100%;margin:3px 0;padding:6px;background:#3a2a1a;color:#fb4;border:1px solid #fb4;font-family:inherit;font-size:11px;cursor:pointer;letter-spacing:.05em">⚠ 触发新告警</button>
-      <button data-act="pinn-flip" style="width:100%;margin:3px 0;padding:6px;background:#2a1a3a;color:#caf;border:1px solid #caf;font-family:inherit;font-size:11px;cursor:pointer;letter-spacing:.05em">↻ 切换 PINN 状态</button>
-      <button data-act="estop" style="width:100%;margin:3px 0;padding:6px;background:#3a1010;color:#f88;border:1px solid #f88;font-family:inherit;font-size:11px;cursor:pointer;letter-spacing:.05em">■ 触发 E-STOP</button>
-      <button data-act="estop-reset" style="width:100%;margin:3px 0;padding:6px;background:#1a3a1a;color:#8f8;border:1px solid #8f8;font-family:inherit;font-size:11px;cursor:pointer;letter-spacing:.05em">▶ 解除 E-STOP</button>
-      <button data-act="reset" style="width:100%;margin:3px 0;padding:6px;background:#1a2a3a;color:#9cf;border:1px solid #3a557a;font-family:inherit;font-size:11px;cursor:pointer;letter-spacing:.05em">⟳ 重置所有状态</button>
-      <div style="margin-top:8px;font-size:10px;color:#678;line-height:1.5;border-top:1px solid #3a557a;padding-top:6px">
-        ?demo=0 关闭模拟器<br>
-        所有按键不影响真实后端
+      <div style="margin-bottom:6px;color:#7cf;letter-spacing:.15em;text-transform:uppercase">演示控制</div>
+      <div style="margin-bottom:8px;color:#9ab;line-height:1.4">所有数据由浏览器模拟生成。</div>
+
+      <div style="font-size:10px;color:#678;letter-spacing:.1em;text-transform:uppercase;margin:8px 0 4px">场景预设</div>
+      <button data-act="scn-normal" style="width:100%;margin:2px 0;padding:6px;background:#1a3a2a;color:#8fc;border:1px solid #5a8;font-family:inherit;font-size:11px;cursor:pointer">★ 正常生产 (默认)</button>
+      <button data-act="scn-overload" style="width:100%;margin:2px 0;padding:6px;background:#3a2a1a;color:#fb4;border:1px solid #fb4;font-family:inherit;font-size:11px;cursor:pointer">↑ 满负荷生产 (压力↑)</button>
+      <button data-act="scn-drift" style="width:100%;margin:2px 0;padding:6px;background:#3a2010;color:#fb8;border:1px solid #fb8;font-family:inherit;font-size:11px;cursor:pointer">~ 工艺漂移 (温度异常)</button>
+      <button data-act="scn-flood" style="width:100%;margin:2px 0;padding:6px;background:#3a1820;color:#f8a;border:1px solid #f8a;font-family:inherit;font-size:11px;cursor:pointer">⚠ 告警雪崩 (5 条)</button>
+      <button data-act="scn-pinn-fail" style="width:100%;margin:2px 0;padding:6px;background:#2a1a3a;color:#caf;border:1px solid #caf;font-family:inherit;font-size:11px;cursor:pointer">✗ PINN 故障 (Gate 7)</button>
+
+      <div style="font-size:10px;color:#678;letter-spacing:.1em;text-transform:uppercase;margin:10px 0 4px">单点动作</div>
+      <button data-act="alarm" style="width:100%;margin:2px 0;padding:5px;background:transparent;color:#fb4;border:1px solid #564;font-family:inherit;font-size:11px;cursor:pointer">⚠ 触发新告警</button>
+      <button data-act="pinn-flip" style="width:100%;margin:2px 0;padding:5px;background:transparent;color:#caf;border:1px solid #564;font-family:inherit;font-size:11px;cursor:pointer">↻ 切换 PINN 状态</button>
+      <button data-act="estop" style="width:100%;margin:2px 0;padding:5px;background:transparent;color:#f88;border:1px solid #564;font-family:inherit;font-size:11px;cursor:pointer">■ 触发 E-STOP</button>
+      <button data-act="reset" style="width:100%;margin:2px 0;padding:5px;background:transparent;color:#9cf;border:1px solid #564;font-family:inherit;font-size:11px;cursor:pointer">⟳ 重置全部 (刷新)</button>
+
+      <div style="margin-top:10px;font-size:10px;color:#678;line-height:1.5;border-top:1px solid #3a557a;padding-top:6px">
+        URL 加 <code style="background:#234;padding:1px 4px">?demo=0</code> 关闭模拟器
       </div>
     `;
     document.body.appendChild(panel);
@@ -709,6 +717,21 @@
       watermark.innerHTML = open ? '<span style="color:#7cf;font-weight:600">DEMO</span> · 模拟器 ▴' : '<span style="color:#7cf;font-weight:600">DEMO</span> · 模拟器 ▾';
     });
 
+    function pulseToast(text, level) {
+      const t = document.createElement('div');
+      const colors = { ok: ['#1a3a2a', '#8fc', '#5a8'], warn: ['#3a2a1a', '#fb4', '#fb4'], crit: ['#3a1820', '#f8a', '#f8a'] };
+      const [bg, fg, br] = colors[level] || colors.ok;
+      t.textContent = text;
+      t.style.cssText = `
+        position: fixed; top: 38px; left: 50%; transform: translateX(-50%); z-index: 10000;
+        padding: 10px 18px; background: ${bg}; color: ${fg}; border: 1px solid ${br};
+        font-family: var(--ff-cn, sans-serif); font-size: 14px; letter-spacing: .05em;
+        box-shadow: 0 4px 14px rgba(0,0,0,.6); pointer-events: none;
+      `;
+      document.body.appendChild(t);
+      setTimeout(() => t.remove(), 3500);
+    }
+
     panel.addEventListener('click', (e) => {
       const t = e.target;
       if (!(t instanceof HTMLElement) || !t.dataset.act) return;
@@ -718,28 +741,88 @@
           const a = makeAlarm(tag, 1 + Math.floor(Math.random() * 3), 'process', `${tag} 演示告警 (手动触发)`, tag.split('.')[0]);
           alarmsActive.push(a);
           wsBroadcast({ type: 'alarm_new', data: a });
+          pulseToast('新告警已触发: ' + tag, 'warn');
           break;
         }
         case 'pinn-flip':
           pinnSource = pinnSource === 'pinn' ? 'mock_fallback' : 'pinn';
           wsBroadcast({ type: 'pinn_status_change', data: { state: pinnSource, reason: '手动触发', recent_errors: [] } });
+          pulseToast(pinnSource === 'pinn' ? 'PINN 已恢复' : 'PINN → mock_fallback', pinnSource === 'pinn' ? 'ok' : 'warn');
           break;
         case 'estop':
           estopActive = true;
           wsBroadcast({ type: 'estop', data: { reason: '演示手动触发' } });
-          break;
-        case 'estop-reset':
-          estopActive = false;
-          location.reload();
+          pulseToast('E-STOP 已触发', 'crit');
           break;
         case 'reset':
-          alarmsActive.length = 0;
-          recentCycles.length = 0;
-          workorderQty = 75.0;
-          estopActive = false;
-          pinnSource = 'pinn';
+          alarmsActive.length = 0; recentCycles.length = 0;
+          workorderQty = 75.0; estopActive = false; pinnSource = 'pinn';
           location.reload();
           break;
+
+        // ─── Scenario presets ─────────────────────────────────────────
+        case 'scn-normal': {
+          // restore SETPOINTS to baseline & clear extras
+          alarmsActive.length = 0;
+          if (pinnSource !== 'pinn') {
+            pinnSource = 'pinn';
+            wsBroadcast({ type: 'pinn_status_change', data: { state: 'pinn', reason: '场景: 正常生产' } });
+          }
+          if (estopActive) { estopActive = false; }
+          // restore die temps
+          for (const t of ['TT-DIE-T.PV','TT-DIE-TM.PV','TT-DIE-M.PV','TT-DIE-BM.PV','TT-DIE-B.PV']) SETPOINTS[t] = 75.0;
+          for (const t of ['PT-150T.PV','PT-150M.PV','PT-150B.PV','PT-90.PV']) SETPOINTS[t] = [18.6,18.2,17.4,20.1][['PT-150T.PV','PT-150M.PV','PT-150B.PV','PT-90.PV'].indexOf(t)];
+          pulseToast('场景: 正常生产 已恢复', 'ok');
+          break;
+        }
+        case 'scn-overload': {
+          // ramp pressures up
+          SETPOINTS['PT-150T.PV'] = 22.5;
+          SETPOINTS['PT-150M.PV'] = 22.0;
+          SETPOINTS['PT-150B.PV'] = 21.5;
+          SETPOINTS['PT-90.PV'] = 24.0;
+          for (let i = 1; i <= 9; i += 1) SETPOINTS[`FLT-${i}.PRESSURE`] = Math.min(2.7, (SETPOINTS[`FLT-${i}.PRESSURE`] || 1) * 1.4);
+          pulseToast('场景: 满负荷 — 压力上调 ~20%', 'warn');
+          break;
+        }
+        case 'scn-drift': {
+          // die temps drift apart (asymmetry)
+          SETPOINTS['TT-DIE-T.PV']  = 78.5;
+          SETPOINTS['TT-DIE-TM.PV'] = 76.0;
+          SETPOINTS['TT-DIE-M.PV']  = 75.0;
+          SETPOINTS['TT-DIE-BM.PV'] = 72.5;
+          SETPOINTS['TT-DIE-B.PV']  = 70.0;
+          // alarm
+          const a = makeAlarm('TT-DIE-T.PV', 2, 'process', '上模温度漂移 +3.5°C 持续 2 分钟', 'DIE-HEAD');
+          alarmsActive.push(a);
+          wsBroadcast({ type: 'alarm_new', data: a });
+          pulseToast('场景: 工艺漂移 — 模头温度对称性失调', 'warn');
+          break;
+        }
+        case 'scn-flood': {
+          const seeds = [
+            ['TT-150B-Z3', 2, '下挤出机Z3 温度低于设定 −1.5°C'],
+            ['PT-150T', 1, '上挤出机熔体压力 28.5 MPa 超 Tier 1'],
+            ['FLT-06.PRESSURE', 3, '浮动辊6 压力轻微偏高'],
+            ['WIDTH-REAR.PV', 2, '后测宽偏差超 ±3mm'],
+            ['SCL-REAR', 3, '后秤称重 −0.4% 持续 5 分钟'],
+          ];
+          for (const [tag, tier, msg] of seeds) {
+            const a = makeAlarm(tag, tier, 'process', msg, tag.split('.')[0]);
+            alarmsActive.push(a);
+            wsBroadcast({ type: 'alarm_new', data: a });
+          }
+          pulseToast('场景: 告警雪崩 — 5 条新告警', 'crit');
+          break;
+        }
+        case 'scn-pinn-fail': {
+          if (pinnSource === 'pinn') {
+            pinnSource = 'mock_fallback';
+            wsBroadcast({ type: 'pinn_status_change', data: { state: 'mock_fallback', reason: '场景: PINN 服务故障', recent_errors: ['fetch failed', 'timeout 2000ms', 'circuit open'] } });
+          }
+          pulseToast('场景: PINN 故障 — 闭环 Gate 7 将阻止 auto_tune', 'crit');
+          break;
+        }
       }
     });
   });

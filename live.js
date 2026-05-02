@@ -416,6 +416,91 @@
     autoConnect: true,
   };
 
+  // ─── Demo tour (sitewide guide浮球) ────────────────────────────────────
+
+  const TOUR = [
+    { path: 'pages/overview.html',    name: '主画面',       hint: '看 4 挤出机 + 5 模头温区实时数据' },
+    { path: 'pages/control.html',     name: '闭环控制',     hint: 'PINN 推荐 + 7 道安全闸 + 实时 cycle 流' },
+    { path: 'pages/alarm.html',       name: '报警管理',     hint: '告警分级、ack 流、AI 预警' },
+    { path: 'pages/recipe.html',      name: '配方管理',     hint: 'LV4 审批 → 应用到 PLC' },
+    { path: 'pages/training.html',    name: 'PINN 训练',    hint: '训练任务 + 影子部署 + 模型注册' },
+    { path: 'pages/trend.html',       name: '趋势',         hint: '历史数据查看' },
+    { path: 'pages/temperature.html', name: '温控系统',     hint: '5 段模头 + 12 区温度' },
+    { path: 'pages/process.html',     name: '工艺',         hint: 'SPC + Cpk 在线分析' },
+    { path: 'pages/mes.html',         name: 'MES 工单',     hint: '订单追溯 + 班组' },
+    { path: 'pages/maintenance.html', name: '维护',         hint: '设备状态' },
+    { path: 'pages/report.html',      name: '报表',         hint: '日报/周报/月报' },
+  ];
+
+  function pathFromLogin(p) {
+    return location.pathname.includes('/pages/') ? p.replace(/^pages\//, '') : p;
+  }
+
+  function renderTourBall() {
+    if (location.pathname.endsWith('login.html')) return;
+    if (document.getElementById('prinx-tour-ball')) return;
+
+    const ball = document.createElement('button');
+    ball.id = 'prinx-tour-ball';
+    ball.type = 'button';
+    ball.title = '演示导览';
+    ball.innerHTML = '◆';
+    ball.style.cssText = `
+      position: fixed; bottom: 6px; left: 8px; z-index: 9999;
+      width: 38px; height: 38px; border-radius: 50%;
+      background: rgba(20,40,60,.95); color: #7cf;
+      border: 1px solid #3a557a; font-family: var(--ff-data, monospace);
+      font-size: 18px; cursor: pointer;
+      box-shadow: 0 4px 14px rgba(0,0,0,.5);
+    `;
+    document.body.appendChild(ball);
+
+    const panel = document.createElement('div');
+    panel.id = 'prinx-tour-panel';
+    panel.style.cssText = `
+      position: fixed; bottom: 50px; left: 8px; z-index: 9999;
+      width: 290px; max-height: 70vh; overflow-y: auto;
+      padding: 10px 0 8px; display: none;
+      font-family: var(--ff-cn, sans-serif); font-size: 12px;
+      background: rgba(15,25,40,.97); color: #cfe;
+      border: 1px solid #3a557a; box-shadow: 0 6px 20px rgba(0,0,0,.55);
+    `;
+
+    const cur = location.pathname.split('/').pop();
+    const items = TOUR.map((t, i) => {
+      const isCur = cur === t.path.split('/').pop();
+      return `<a href="${pathFromLogin(t.path)}" style="display:block;padding:7px 14px;text-decoration:none;color:${isCur ? '#001014' : '#cfe'};background:${isCur ? '#7cf' : 'transparent'};border-left:2px solid ${isCur ? '#7cf' : 'transparent'}">
+        <div style="font-size:13px;font-weight:500">${i + 1}. ${t.name}${isCur ? ' · 当前页' : ''}</div>
+        <div style="font-size:11px;opacity:.75;margin-top:1px">${t.hint}</div>
+      </a>`;
+    }).join('');
+
+    panel.innerHTML = `
+      <div style="padding:6px 14px 10px;color:#7cf;letter-spacing:.15em;text-transform:uppercase;font-family:var(--ff-data,monospace);font-size:11px;border-bottom:1px solid #3a557a">演示导览 · TOUR</div>
+      ${items}
+      <div style="padding:6px 14px;font-size:10px;color:#678;border-top:1px solid #3a557a;line-height:1.5">右下 DEMO 按钮可触发场景演示<br>顶栏退出可重新进登录页</div>
+    `;
+    document.body.appendChild(panel);
+
+    ball.addEventListener('click', () => {
+      const open = panel.style.display !== 'none';
+      panel.style.display = open ? 'none' : 'block';
+      ball.style.background = open ? 'rgba(20,40,60,.95)' : '#7cf';
+      ball.style.color = open ? '#7cf' : '#001014';
+    });
+
+    // Auto-pop on first visit per session (only on overview)
+    const POPPED = 'prinx.tour_popped';
+    if (!sessionStorage.getItem(POPPED) && location.pathname.includes('overview.html')) {
+      setTimeout(() => {
+        ball.click();
+        sessionStorage.setItem(POPPED, '1');
+        // Auto-close after 6s
+        setTimeout(() => { if (panel.style.display === 'block') ball.click(); }, 6000);
+      }, 1500);
+    }
+  }
+
   // ─── Auto-start ─────────────────────────────────────────────────────────
 
   function start() {
@@ -424,6 +509,7 @@
     connect();
     window.PRINX.refresh().catch(() => {});
     window.PRINX.renderUserBadge();
+    renderTourBall();
   }
 
   if (document.readyState === 'loading') {
