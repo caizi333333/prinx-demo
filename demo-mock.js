@@ -662,20 +662,86 @@
     return handleApi(method, path, body);
   };
 
-  // ─── Indicate demo mode in UI ────────────────────────────────────────
+  // ─── Demo control panel + watermark ──────────────────────────────────
 
   document.addEventListener('DOMContentLoaded', () => {
-    const banner = document.createElement('div');
-    banner.id = 'prinx-demo-watermark';
-    banner.textContent = 'DEMO MODE · 浏览器内模拟器，无真实后端';
-    banner.style.cssText = `
-      position: fixed; bottom: 6px; right: 8px; z-index: 999;
-      padding: 4px 10px; font-family: var(--ff-data, monospace);
+    const watermark = document.createElement('button');
+    watermark.id = 'prinx-demo-watermark';
+    watermark.type = 'button';
+    watermark.title = '点击展开演示控制';
+    watermark.innerHTML = '<span style="color:#7cf;font-weight:600">DEMO</span> · 模拟器 ▴';
+    watermark.style.cssText = `
+      position: fixed; bottom: 6px; right: 8px; z-index: 9999;
+      padding: 5px 10px; font-family: var(--ff-data, monospace);
       font-size: 11px; letter-spacing: .1em; text-transform: uppercase;
-      background: rgba(40, 60, 90, .85); color: #88c0e0;
-      border: 1px solid #3a557a; pointer-events: none;
+      background: rgba(20, 35, 55, .92); color: #88c0e0;
+      border: 1px solid #3a557a; cursor: pointer;
     `;
-    document.body.appendChild(banner);
+    document.body.appendChild(watermark);
+
+    const panel = document.createElement('div');
+    panel.id = 'prinx-demo-panel';
+    panel.style.cssText = `
+      position: fixed; bottom: 36px; right: 8px; z-index: 9999;
+      width: 240px; padding: 12px; display: none;
+      font-family: var(--ff-data, monospace); font-size: 11px;
+      background: rgba(15, 25, 40, .96); color: #cfe;
+      border: 1px solid #3a557a; box-shadow: 0 6px 20px rgba(0,0,0,.5);
+    `;
+    panel.innerHTML = `
+      <div style="margin-bottom:8px;color:#7cf;letter-spacing:.15em;text-transform:uppercase">演示控制</div>
+      <div style="margin-bottom:6px;color:#9ab;line-height:1.4">所有数据由浏览器模拟生成。下方按钮可即时触发事件。</div>
+      <button data-act="alarm" style="width:100%;margin:3px 0;padding:6px;background:#3a2a1a;color:#fb4;border:1px solid #fb4;font-family:inherit;font-size:11px;cursor:pointer;letter-spacing:.05em">⚠ 触发新告警</button>
+      <button data-act="pinn-flip" style="width:100%;margin:3px 0;padding:6px;background:#2a1a3a;color:#caf;border:1px solid #caf;font-family:inherit;font-size:11px;cursor:pointer;letter-spacing:.05em">↻ 切换 PINN 状态</button>
+      <button data-act="estop" style="width:100%;margin:3px 0;padding:6px;background:#3a1010;color:#f88;border:1px solid #f88;font-family:inherit;font-size:11px;cursor:pointer;letter-spacing:.05em">■ 触发 E-STOP</button>
+      <button data-act="estop-reset" style="width:100%;margin:3px 0;padding:6px;background:#1a3a1a;color:#8f8;border:1px solid #8f8;font-family:inherit;font-size:11px;cursor:pointer;letter-spacing:.05em">▶ 解除 E-STOP</button>
+      <button data-act="reset" style="width:100%;margin:3px 0;padding:6px;background:#1a2a3a;color:#9cf;border:1px solid #3a557a;font-family:inherit;font-size:11px;cursor:pointer;letter-spacing:.05em">⟳ 重置所有状态</button>
+      <div style="margin-top:8px;font-size:10px;color:#678;line-height:1.5;border-top:1px solid #3a557a;padding-top:6px">
+        ?demo=0 关闭模拟器<br>
+        所有按键不影响真实后端
+      </div>
+    `;
+    document.body.appendChild(panel);
+
+    watermark.addEventListener('click', () => {
+      const open = panel.style.display !== 'none';
+      panel.style.display = open ? 'none' : 'block';
+      watermark.innerHTML = open ? '<span style="color:#7cf;font-weight:600">DEMO</span> · 模拟器 ▴' : '<span style="color:#7cf;font-weight:600">DEMO</span> · 模拟器 ▾';
+    });
+
+    panel.addEventListener('click', (e) => {
+      const t = e.target;
+      if (!(t instanceof HTMLElement) || !t.dataset.act) return;
+      switch (t.dataset.act) {
+        case 'alarm': {
+          const tag = ['TT-150B-Z3', 'PT-150T', 'FLT-06.PRESSURE', 'WIDTH-REAR.PV'][Math.floor(Math.random() * 4)];
+          const a = makeAlarm(tag, 1 + Math.floor(Math.random() * 3), 'process', `${tag} 演示告警 (手动触发)`, tag.split('.')[0]);
+          alarmsActive.push(a);
+          wsBroadcast({ type: 'alarm_new', data: a });
+          break;
+        }
+        case 'pinn-flip':
+          pinnSource = pinnSource === 'pinn' ? 'mock_fallback' : 'pinn';
+          wsBroadcast({ type: 'pinn_status_change', data: { state: pinnSource, reason: '手动触发', recent_errors: [] } });
+          break;
+        case 'estop':
+          estopActive = true;
+          wsBroadcast({ type: 'estop', data: { reason: '演示手动触发' } });
+          break;
+        case 'estop-reset':
+          estopActive = false;
+          location.reload();
+          break;
+        case 'reset':
+          alarmsActive.length = 0;
+          recentCycles.length = 0;
+          workorderQty = 75.0;
+          estopActive = false;
+          pinnSource = 'pinn';
+          location.reload();
+          break;
+      }
+    });
   });
 
   console.log('[PRINX demo] mock layer installed — fetch + WebSocket intercepted');
