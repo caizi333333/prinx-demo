@@ -156,6 +156,34 @@
   let rejectedCount = 0;
   let workorderQty = 75.0;
 
+  // ─── Shift cycle (real wall-clock) ─────────────────────────────────────
+  // A 班 8:00-16:00, B 班 16:00-24:00, C 班 0:00-8:00
+  function currentShift() {
+    const h = new Date().getHours();
+    if (h >= 8 && h < 16) return { code: 'A', name: 'A 班', operator: '王建国', uid: 'wjg', avatar: 'WJ', level: 3 };
+    if (h >= 16 && h < 24) return { code: 'B', name: 'B 班', operator: '李振华', uid: 'lzh', avatar: 'LZ', level: 2 };
+    return { code: 'C', name: 'C 班', operator: '张伟', uid: 'zw', avatar: 'ZW', level: 2 };
+  }
+  let lastShift = currentShift().code;
+
+  // ─── Dynamic PINN confidence (time-of-day + drift sensitivity) ────────
+  function dynamicConfidence() {
+    const h = new Date().getHours();
+    // night shift: lower confidence
+    let base = (h >= 8 && h < 22) ? 0.85 : 0.72;
+    // sensitivity to die-temp asymmetry
+    const dieTemps = ['TT-DIE-T.PV','TT-DIE-TM.PV','TT-DIE-M.PV','TT-DIE-BM.PV','TT-DIE-B.PV']
+      .map(k => state[k]?.value ?? 75);
+    const mean = dieTemps.reduce((a,b)=>a+b,0)/5;
+    const std = Math.sqrt(dieTemps.reduce((s,v)=>s+(v-mean)**2,0)/5);
+    base -= Math.min(0.2, std * 0.04);
+    // alarm penalty
+    base -= Math.min(0.15, alarmsActive.filter(a => a.tier <= 2).length * 0.05);
+    // mock_fallback hard cap
+    if (pinnSource === 'mock_fallback') base = Math.min(base, 0.3);
+    return Math.max(0.15, Math.min(0.97, base + (Math.random() - 0.5) * 0.05));
+  }
+
   // Initialize state
   function noise(r, frac = 0.005) {
     return (Math.random() - 0.5) * 2 * r * frac;
@@ -365,6 +393,33 @@
   }
   setInterval(tick, 1000);
 
+  // ─── Shift watcher: update topbar SHIFT every 30s, broadcast on change ─
+  function applyShiftToUI() {
+    const s = currentShift();
+    const el = document.getElementById('topbar-shift');
+    if (el && el.textContent !== s.name) el.textContent = s.name;
+    const u = document.getElementById('user-name');
+    if (u) u.textContent = s.operator;
+    const ulvl = document.getElementById('user-level');
+    if (ulvl) ulvl.textContent = 'LV' + s.level;
+    const av = document.getElementById('user-avatar');
+    if (av) av.textContent = s.avatar;
+  }
+  setInterval(() => {
+    const s = currentShift();
+    applyShiftToUI();
+    if (s.code !== lastShift) {
+      wsBroadcast({ type: 'shift_change', data: { from: lastShift, to: s.code, operator: s.operator } });
+      const t = document.createElement('div');
+      t.textContent = `班次切换: ${lastShift} → ${s.code} (${s.operator})`;
+      t.style.cssText = 'position:fixed;top:38px;left:50%;transform:translateX(-50%);z-index:10001;padding:10px 18px;background:#1a3a2a;color:#8fc;border:1px solid #5a8;font-family:var(--ff-cn);font-size:14px;box-shadow:0 4px 14px rgba(0,0,0,.6);pointer-events:none;';
+      document.body.appendChild(t);
+      setTimeout(() => t.remove(), 4000);
+      lastShift = s.code;
+    }
+  }, 15000);
+  document.addEventListener('DOMContentLoaded', applyShiftToUI);
+
   // ─── Threshold-driven alarm engine ───────────────────────────────────
 
   const ALARM_DESC = {
@@ -467,7 +522,7 @@
       source: 'pinn',
       trigger: mode === 'auto_tune' ? 'auto_tune_cycle' : 'operator_apply',
       initiated_by: mode === 'auto_tune' ? 'auto_tune' : '李振华',
-      pinn_confidence: 0.75 + Math.random() * 0.2,
+      pinn_confidence: dynamicConfidence(),
       pinn_model_version: 'quality-2026.04.28-v2',
       pinn_source: pinnSource,
       proposals: [

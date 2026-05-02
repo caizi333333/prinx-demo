@@ -207,7 +207,7 @@
     <div class="topbar-meta">
       <div class="topbar-meta-item">
         <span class="topbar-meta-label">SHIFT</span>
-        <span class="topbar-meta-value">B 班</span>
+        <span class="topbar-meta-value" id="topbar-shift">B 班</span>
       </div>
       <div class="topbar-meta-item">
         <span class="topbar-meta-label">STATUS</span>
@@ -602,20 +602,11 @@
           卷取长度
           <span class="unit">M</span>
         </div>
-        <div class="kpi-value">75.0</div>
-        <svg class="kpi-spark" viewBox="0 0 280 28" preserveAspectRatio="none">
-          <polyline points="0,22 20,20 40,22 60,18 80,16 100,14 120,12 140,11 160,9 180,8 200,6 220,5 240,4 260,3 280,2" fill="none" stroke="#00E5FF" stroke-width="1.5"/>
-          <polyline points="0,22 20,20 40,22 60,18 80,16 100,14 120,12 140,11 160,9 180,8 200,6 220,5 240,4 260,3 280,2 280,28 0,28" fill="url(#sparkfill)" opacity="0.15"/>
-          <defs>
-            <linearGradient id="sparkfill" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stop-color="#00E5FF"/>
-              <stop offset="100%" stop-color="#00E5FF" stop-opacity="0"/>
-            </linearGradient>
-          </defs>
-        </svg>
+        <div class="kpi-value" data-signal="REEL.LENGTH" data-precision="1">75.0</div>
+        <svg class="kpi-spark" width="280" height="28" data-spark="REEL.LENGTH" data-color="#00E5FF"></svg>
         <div class="kpi-meta">
           <span>计划 <b>1000 M</b></span>
-          <span>进度 <b>7.5%</b></span>
+          <span>进度 <b id="reel-pct">7.5%</b></span>
         </div>
       </div>
 
@@ -624,12 +615,10 @@
           接取速度
           <span class="unit">M/MIN</span>
         </div>
-        <div class="kpi-value">5.0<span class="unit-inline">/min</span></div>
-        <svg class="kpi-spark" viewBox="0 0 280 28" preserveAspectRatio="none">
-          <polyline points="0,16 20,14 40,15 60,13 80,12 100,14 120,13 140,12 160,11 180,12 200,13 220,12 240,11 260,12 280,13" fill="none" stroke="#A0AEC0" stroke-width="1.2"/>
-        </svg>
+        <div class="kpi-value"><span data-signal="TAKEUP.SPEED" data-precision="1">5.0</span><span class="unit-inline">/min</span></div>
+        <svg class="kpi-spark" width="280" height="28" data-spark="TAKEUP.SPEED" data-color="#A0AEC0"></svg>
         <div class="kpi-meta">
-          <span>设定 <b>5.0</b></span>
+          <span>设定 <b data-signal="TAKEUP.SPEED.SP" data-precision="1">5.0</b></span>
           <span>偏差 <b>±0.0%</b></span>
         </div>
       </div>
@@ -639,10 +628,8 @@
           收缩率
           <span class="unit">%</span>
         </div>
-        <div class="kpi-value">4.0</div>
-        <svg class="kpi-spark" viewBox="0 0 280 28" preserveAspectRatio="none">
-          <polyline points="0,18 20,16 40,18 60,17 80,16 100,18 120,17 140,15 160,16 180,17 200,16 220,15 240,16 260,17 280,16" fill="none" stroke="#A0AEC0" stroke-width="1.2"/>
-        </svg>
+        <div class="kpi-value" data-signal="SHRINK.PV" data-precision="1">4.0</div>
+        <svg class="kpi-spark" width="280" height="28" data-spark="SHRINK.PV" data-color="#A0AEC0"></svg>
         <div class="kpi-meta">
           <span>限值 <b>3.5–4.5</b></span>
           <span style="color:var(--status-running)">●  IN-RANGE</span>
@@ -730,7 +717,7 @@ function tick() {
 }
 tick(); setInterval(tick, 1000);
 </script>
-<script src="../demo-mock.js?v=1777700788"></script>
-<script src="../live.js?v=1777700788"></script>
+<script src="../demo-mock.js?v=1777701518"></script>
+<script src="../live.js?v=1777701518"></script>
 </body>
 </html>

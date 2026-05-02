@@ -132,7 +132,48 @@
     return value.toFixed(3);
   }
 
+  // ─── Signal history ring buffer (60 points / ~60 sec) ────────────────
+
+  const SIG_HISTORY_LEN = 60;
+  const sigHistory = new Map();   // tag → [{ts, value}]
+
+  function pushHistory(tag, value, ts) {
+    if (typeof value !== 'number') return;
+    let arr = sigHistory.get(tag);
+    if (!arr) { arr = []; sigHistory.set(tag, arr); }
+    arr.push({ ts, value });
+    if (arr.length > SIG_HISTORY_LEN) arr.shift();
+  }
+
+  function renderSparkline(svg, tag) {
+    const arr = sigHistory.get(tag);
+    if (!arr || arr.length < 2) return;
+    const w = parseFloat(svg.getAttribute('width')) || 80;
+    const h = parseFloat(svg.getAttribute('height')) || 20;
+    const vals = arr.map(p => p.value);
+    let min = Math.min(...vals), max = Math.max(...vals);
+    const range = max - min || 1;
+    const pad = range * 0.1;
+    min -= pad; max += pad;
+    const span = max - min;
+    const stepX = w / (SIG_HISTORY_LEN - 1);
+    const startX = w - stepX * (arr.length - 1);
+    const pts = arr.map((p, i) => `${(startX + stepX * i).toFixed(1)},${(h - ((p.value - min) / span) * h).toFixed(1)}`).join(' ');
+    const last = arr[arr.length - 1];
+    const lastY = h - ((last.value - min) / span) * h;
+    const color = svg.dataset.color || '#7cf';
+    svg.innerHTML = `
+      <polyline points="${pts}" fill="none" stroke="${color}" stroke-width="1.2" stroke-linejoin="round" />
+      <circle cx="${w}" cy="${lastY.toFixed(1)}" r="1.6" fill="${color}" />
+    `;
+  }
+
+  function updateSparklines(tag) {
+    document.querySelectorAll(`svg[data-spark="${cssEscape(tag)}"]`).forEach((svg) => renderSparkline(svg, tag));
+  }
+
   function updateBoundElements(tag, sv) {
+    if (typeof sv.value === 'number') pushHistory(tag, sv.value, sv.timestamp || Date.now());
     document.querySelectorAll(`[data-signal="${cssEscape(tag)}"]`).forEach((el) => {
       const formatted = formatValue(sv.value, el);
       const suffix = el.dataset.suffix ?? '';
@@ -140,7 +181,6 @@
       el.textContent = formatted + suffix;
       el.classList.remove('stale');
       if (sv.quality !== 'good') el.classList.add('stale');
-      // Brief flash if value changed visibly
       if (prev !== el.textContent && !el.classList.contains('sig-flash')) {
         el.classList.add('sig-flash');
         setTimeout(() => el.classList.remove('sig-flash'), 350);
@@ -157,7 +197,17 @@
         else if (v < range[0] + warnMargin || v > range[1] - warnMargin) el.classList.add('is-warn');
       }
     });
+    updateSparklines(tag);
   }
+
+  /** Auto-attach sparklines to any element with `data-spark="<tag>"` placed late */
+  function autoMountSparklines() {
+    document.querySelectorAll('svg[data-spark]:empty').forEach((svg) => {
+      const tag = svg.dataset.spark;
+      if (sigHistory.has(tag)) renderSparkline(svg, tag);
+    });
+  }
+  setInterval(autoMountSparklines, 2000);
 
   function cssEscape(s) {
     return String(s).replace(/(["'\\])/g, '\\$1');
