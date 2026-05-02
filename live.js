@@ -136,9 +136,15 @@
     document.querySelectorAll(`[data-signal="${cssEscape(tag)}"]`).forEach((el) => {
       const formatted = formatValue(sv.value, el);
       const suffix = el.dataset.suffix ?? '';
+      const prev = el.textContent;
       el.textContent = formatted + suffix;
       el.classList.remove('stale');
       if (sv.quality !== 'good') el.classList.add('stale');
+      // Brief flash if value changed visibly
+      if (prev !== el.textContent && !el.classList.contains('sig-flash')) {
+        el.classList.add('sig-flash');
+        setTimeout(() => el.classList.remove('sig-flash'), 350);
+      }
     });
     document.querySelectorAll(`[data-signal-class="${cssEscape(tag)}"]`).forEach((el) => {
       const v = sv.value;
@@ -294,6 +300,14 @@
       case 'alarm_update':
         updateAlarmStrip(msg.data);
         emit('alarm', msg.data);
+        // Visual pulse only on truly new (not update)
+        if (msg.type === 'alarm_new') {
+          document.body.classList.remove('alarm-flash');
+          // Force reflow to restart animation
+          void document.body.offsetWidth;
+          document.body.classList.add('alarm-flash');
+          setTimeout(() => document.body.classList.remove('alarm-flash'), 900);
+        }
         break;
       case 'alarm_cleared':
         break;
@@ -416,6 +430,62 @@
     autoConnect: true,
   };
 
+  // ─── Inject sitewide UX polish CSS (transitions + alarm pulse) ──────
+
+  function injectGlobalStyles() {
+    if (document.getElementById('prinx-live-styles')) return;
+    const s = document.createElement('style');
+    s.id = 'prinx-live-styles';
+    s.textContent = `
+      /* signal value smooth transition (text color subtle pulse on update) */
+      [data-signal] { transition: color 200ms ease, text-shadow 200ms ease; }
+      [data-signal].sig-flash { color: var(--accent, #7cf) !important; text-shadow: 0 0 8px rgba(124, 207, 255, .4); }
+      [data-signal].stale { color: #888 !important; opacity: .6; }
+      /* alarm/state class binding */
+      [data-signal-class].is-warn { color: #fb4 !important; }
+      [data-signal-class].is-alarm { color: #f55 !important; text-shadow: 0 0 6px rgba(255,80,80,.4); }
+
+      /* New-alarm screen flash: short red border pulse on body */
+      @keyframes prinxAlarmPulse {
+        0%   { box-shadow: inset 0 0 0 3px rgba(255,80,80,.0); }
+        20%  { box-shadow: inset 0 0 0 3px rgba(255,80,80,.6); }
+        100% { box-shadow: inset 0 0 0 3px rgba(255,80,80,.0); }
+      }
+      body.alarm-flash { animation: prinxAlarmPulse 800ms ease-out; }
+
+      /* E-STOP overlay */
+      body.estop-active::before {
+        content: 'E-STOP ACTIVE · 急停已触发';
+        position: fixed; inset: 0; z-index: 9998;
+        background: rgba(80, 0, 0, .55); color: #fff;
+        font-family: var(--ff-data, monospace); font-size: 28px;
+        letter-spacing: .2em; text-transform: uppercase;
+        display: grid; place-items: center;
+        backdrop-filter: blur(2px);
+        pointer-events: none;
+      }
+
+      /* Pulse style for ack button */
+      .ack-btn { padding: 2px 8px; cursor: pointer;
+        font-family: var(--ff-data, monospace); font-size: 11px;
+        background: transparent; color: #fb4; border: 1px solid #fb4;
+        margin-left: 8px; letter-spacing: .05em; }
+      .ack-btn:hover { background: #fb4; color: #001; }
+
+      /* Mobile responsive baseline (all pages) */
+      @media (max-width: 900px) {
+        .topbar, .top-strip { flex-wrap: wrap; height: auto !important; padding: 8px 12px !important; }
+        .sidenav { display: none !important; }
+        .canvas, main { padding: 8px !important; }
+        .topbar-meta, .top-strip-right { gap: 8px !important; font-size: 11px !important; }
+        .recipe-grid, .ctrl-canvas, .alarm-grid, .train-canvas { grid-template-columns: 1fr !important; }
+        .extruder-row { grid-template-columns: 1fr 1fr !important; }
+        .signals-strip { grid-template-columns: 1fr 1fr !important; }
+      }
+    `;
+    document.head.appendChild(s);
+  }
+
   // ─── Demo tour (sitewide guide浮球) ────────────────────────────────────
 
   const TOUR = [
@@ -504,6 +574,7 @@
   // ─── Auto-start ─────────────────────────────────────────────────────────
 
   function start() {
+    injectGlobalStyles();
     // Don't auto-connect on login page
     if (location.pathname.endsWith('login.html')) return;
     connect();

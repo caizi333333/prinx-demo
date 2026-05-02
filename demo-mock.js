@@ -237,47 +237,196 @@
     { id: 'anomaly-2026.04.23-v1', kind: 'anomaly', version: 'v1', status: 'in_use', deployed_at: new Date(Date.now() - 7 * 86400000).toISOString() },
   ];
 
+  // ─── Physical coupling — derive PV targets from upstream signals ─────
+  //
+  // 真实工业逻辑：
+  //   PT-* (压力)  ← f(EXT-*.SPEED, TT-DIE-*.PV)：速度↑、模头温度↓ → 压力↑
+  //   MOT-*.CURRENT ← f(PT-*.PV)：压力↑ → 电流↑
+  //   TT-DIE-*.PV  ← TT-DIE-*.SP 一阶滞后 (热惯性)
+  //   EXT-*.SPEED  ← EXT-*.SPEED.SP 一阶滞后 (RPM 响应较快)
+  //   SCL-*.PV     ← SCL-*.SP 加挤出速度比例噪声
+  //   REEL.LENGTH  ← TAKEUP.SPEED 累积积分
+
+  function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+
+  /** 基于上游信号 + setpoint 推导每个 PV 的瞬时目标，返回 {tag: target} */
+  function deriveTargets() {
+    const t = {};
+    // 1. SP 直接驱动同名 PV (SP→PV 一阶滞后追随)
+    //    EXT-T.SPEED.SP → EXT-T.SPEED 等
+    for (const sig of SIGNALS) {
+      if (sig.kind !== 'sp') continue;
+      const pvTag = sig.tag.replace(/\.SP$/, '.PV').replace(/\.SPEED\.SP$/, '.SPEED');
+      if (state[pvTag]) t[pvTag] = SETPOINTS[sig.tag] ?? state[pvTag].value;
+    }
+    // 2. 模头温度按 SP 跟随（已含在 1）
+    // 3. 挤出机熔体压力 = f(speed, die_temp_avg)
+    const dieAvg = ['TT-DIE-T.PV','TT-DIE-TM.PV','TT-DIE-M.PV','TT-DIE-BM.PV','TT-DIE-B.PV']
+      .map(k => state[k]?.value ?? 75).reduce((a,b)=>a+b,0) / 5;
+    const tempFactor = 1 + (75 - dieAvg) * 0.012;  // temp ↓ → 压力 ↑
+    for (const [extId, baseP] of [['T', 18.6], ['M', 18.2], ['B', 17.4], ['90', 20.1]]) {
+      const speed = state[`EXT-${extId}.SPEED`]?.value ?? 5;
+      const speedRef = SETPOINTS[`EXT-${extId}.SPEED.SP`] ?? 5;
+      const speedFactor = 1 + (speed - speedRef) * 0.06;
+      const ptTag = `PT-${extId === '90' ? '90' : '150' + extId}.PV`;
+      const aliasTag = `EXT-${extId}.PRESSURE`;
+      const target = baseP * tempFactor * speedFactor;
+      if (state[ptTag]) t[ptTag] = target;
+      if (state[aliasTag]) t[aliasTag] = target;
+    }
+    // 4. 主电机电流 = base + 4.5 * pressure
+    for (const extId of ['150T', '150M', '150B', '90']) {
+      const p = state[`PT-${extId}.PV`]?.value ?? 18;
+      if (state[`MOT-${extId}.CURRENT`]) t[`MOT-${extId}.CURRENT`] = 30 + p * 4.5;
+    }
+    // 5. 挤出机熔体温度 = die_avg + 12 + 0.6 * (speed - 5)
+    for (const extId of ['T','M','B','90']) {
+      const speed = state[`EXT-${extId}.SPEED`]?.value ?? 5;
+      const baseRef = extId === '90' ? 85 : extId === 'B' ? 73 : 70;
+      const tag = `EXT-${extId}.MELT_TEMP`;
+      if (state[tag]) t[tag] = baseRef + (speed - (extId === '90' ? 7.6 : extId === 'B' ? 4.2 : 5.1)) * 1.5;
+    }
+    // 6. 挤出机区域温度 SP→PV 跟随（已含在 1）
+    // 7. 称重 / 测宽 — 跟设定 + 速度小扰动
+    const speedAvg = ['EXT-T.SPEED','EXT-M.SPEED','EXT-B.SPEED','EXT-90.SPEED']
+      .map(k => state[k]?.value ?? 5).reduce((a,b)=>a+b,0) / 4;
+    const speedDev = (speedAvg - 5.5) * 0.002;
+    if (state['SCL-FRONT.PV']) t['SCL-FRONT.PV'] = (SETPOINTS['SCL-FRONT.SP'] ?? 0.75) + speedDev;
+    if (state['SCL-REAR.PV'])  t['SCL-REAR.PV']  = (SETPOINTS['SCL-REAR.SP']  ?? 0.75) + speedDev * 0.9;
+    if (state['WIDTH-REAR.PV']) {
+      const takeup = state['TAKEUP.SPEED']?.value ?? 5;
+      t['WIDTH-REAR.PV'] = (SETPOINTS['WIDTH-REAR.SP'] ?? 165) + (5 - takeup) * 0.6;
+    }
+    // 8. 浮动辊位置 跟 SP；压力按位置略微偏置
+    for (let i = 1; i <= 9; i += 1) {
+      if (state[`FLT-${i}.POS`]) t[`FLT-${i}.POS`] = SETPOINTS[`FLT-${i}.POS`] ?? 50;
+    }
+    // 9. 张力 ≈ 浮动辊平均压力
+    const fltAvg = Array.from({length:9},(_,i)=>state[`FLT-${i+1}.PRESSURE`]?.value ?? 1).reduce((a,b)=>a+b,0)/9;
+    if (state['TENSION.PV']) t['TENSION.PV'] = fltAvg;
+    return t;
+  }
+
   // ─── Tick (1 Hz simulation) ───────────────────────────────────────────
 
   function tick() {
     if (estopActive) return;
     const now = Date.now();
     const changed = [];
+    const targets = deriveTargets();
+
     for (const sig of SIGNALS) {
       if (sig.unit === 'bool' || sig.kind === 'sp') continue;
-      const target = SETPOINTS[sig.tag] ?? 0;
       const range = sig.range ?? [0, 1];
       const span = range[1] - range[0];
       const cur = state[sig.tag].value;
-      // OU-style mean reversion + noise
-      const drift = (target - cur) * 0.05;
-      const next = cur + drift + noise(span, 0.003);
-      if (Math.abs(next - cur) > span * 0.0001) {
-        const sv = { tag: sig.tag, value: next, quality: 'good', timestamp: now };
+      const target = targets[sig.tag] ?? SETPOINTS[sig.tag] ?? cur;
+
+      // Time constant by signal type — temperatures lag, pressures fast, weights slow
+      let tau = 0.06;  // default 6% per tick
+      if (sig.unit === '°C') tau = 0.03;        // thermal mass
+      else if (sig.unit === 'MPA' && sig.tag.startsWith('PT-')) tau = 0.15;
+      else if (sig.unit === 'A') tau = 0.2;
+      else if (sig.unit === 'KG/M') tau = 0.05;
+      else if (sig.unit === 'MM' && sig.tag.startsWith('FLT')) tau = 0.08;
+
+      const drift = (target - cur) * tau;
+      // Limit single-tick change to 0.4% of span (smooth visual)
+      const maxStep = span * 0.004;
+      const stepped = clamp(drift, -maxStep, maxStep);
+      const noiseAmp = sig.unit === '°C' ? 0.0012 : sig.unit === 'MPA' ? 0.0018 : 0.0015;
+      const next = cur + stepped + noise(span, noiseAmp);
+      const clamped = clamp(next, range[0], range[1]);
+
+      if (Math.abs(clamped - cur) > span * 0.0001) {
+        const sv = { tag: sig.tag, value: clamped, quality: 'good', timestamp: now };
         state[sig.tag] = sv;
         changed.push(sv);
       }
     }
-    workorderQty += 5.0 / 60; // 5 m/min → ~0.083 m/sec
+
+    // Workorder progress driven by actual TAKEUP speed
+    const takeup = state['TAKEUP.SPEED']?.value ?? 5;
+    workorderQty += takeup / 60;
     state['REEL.LENGTH'] = { tag: 'REEL.LENGTH', value: workorderQty, quality: 'good', timestamp: now };
     WORKORDERS[0].produced_qty = Math.round(workorderQty * 10) / 10;
 
-    // Broadcast signal_delta
-    if (changed.length) wsBroadcast({ type: 'signal_delta', data: changed.slice(0, 30), ts: now });
-    // 2Hz workorder progress
+    // Threshold-driven alarms (auto-raise / auto-clear)
+    evaluateAlarms(now);
+
+    // Broadcast signal_delta (cap to keep WS payload small)
+    if (changed.length) wsBroadcast({ type: 'signal_delta', data: changed.slice(0, 40), ts: now });
     if (Math.floor(now / 500) % 2 === 0) {
       wsBroadcast({ type: 'workorder_progress', data: { id: WORKORDERS[0].id, produced_qty: WORKORDERS[0].produced_qty } });
     }
   }
   setInterval(tick, 1000);
 
-  // Periodic alarm event
+  // ─── Threshold-driven alarm engine ───────────────────────────────────
+
+  const ALARM_DESC = {
+    'TT-DIE-T.PV': { hi: '上模温度过高 +', lo: '上模温度过低 ', unit: '°C', sp: 'TT-DIE-T.SP' },
+    'TT-DIE-TM.PV': { hi: '上中模温度过高 +', lo: '上中模温度过低 ', unit: '°C', sp: 'TT-DIE-TM.SP' },
+    'TT-DIE-M.PV': { hi: '中模温度过高 +', lo: '中模温度过低 ', unit: '°C', sp: 'TT-DIE-M.SP' },
+    'TT-DIE-BM.PV': { hi: '下中模温度过高 +', lo: '下中模温度过低 ', unit: '°C', sp: 'TT-DIE-BM.SP' },
+    'TT-DIE-B.PV': { hi: '下模温度过高 +', lo: '下模温度过低 ', unit: '°C', sp: 'TT-DIE-B.SP' },
+    'PT-150T.PV': { hi: '上挤出机熔体压力高 ', lo: '上挤出机压力低 ', unit: 'MPa', limit: { hi: 25, hh: 28 } },
+    'PT-150M.PV': { hi: '中挤出机压力高 ', lo: '中挤出机压力低 ', unit: 'MPa', limit: { hi: 25, hh: 28 } },
+    'PT-150B.PV': { hi: '下挤出机压力高 ', lo: '下挤出机压力低 ', unit: 'MPa', limit: { hi: 25, hh: 28 } },
+    'PT-90.PV': { hi: '90挤出机压力高 ', lo: '90挤出机压力低 ', unit: 'MPa', limit: { hi: 25, hh: 28 } },
+    'WIDTH-REAR.PV': { hi: '后测宽偏宽 +', lo: '后测宽偏窄 ', unit: 'MM', sp: 'WIDTH-REAR.SP', tol: 3 },
+    'SCL-FRONT.PV': { hi: '前秤偏重 ', lo: '前秤偏轻 ', unit: 'KG/M', sp: 'SCL-FRONT.SP', tol: 0.015 },
+    'SCL-REAR.PV': { hi: '后秤偏重 ', lo: '后秤偏轻 ', unit: 'KG/M', sp: 'SCL-REAR.SP', tol: 0.015 },
+  };
+
+  function evaluateAlarms(now) {
+    for (const [tag, desc] of Object.entries(ALARM_DESC)) {
+      const sv = state[tag]; if (!sv) continue;
+      const v = sv.value;
+      let breach = null;  // { tier, msg }
+      if (desc.limit) {
+        if (v > desc.limit.hh) breach = { tier: 1, msg: `${desc.hi}${v.toFixed(1)} ${desc.unit} 超 Tier 1 (${desc.limit.hh})` };
+        else if (v > desc.limit.hi) breach = { tier: 2, msg: `${desc.hi}${v.toFixed(1)} ${desc.unit} 超 ${desc.limit.hi}` };
+      } else if (desc.sp) {
+        const sp = SETPOINTS[desc.sp] ?? v;
+        const dev = v - sp;
+        const tol = desc.tol || 1.5;
+        if (Math.abs(dev) > tol * 1.8) {
+          breach = { tier: 2, msg: dev > 0 ? `${desc.hi}${dev.toFixed(2)} ${desc.unit}` : `${desc.lo}${dev.toFixed(2)} ${desc.unit}` };
+        } else if (Math.abs(dev) > tol) {
+          breach = { tier: 3, msg: dev > 0 ? `${desc.hi}${dev.toFixed(2)} ${desc.unit}` : `${desc.lo}${dev.toFixed(2)} ${desc.unit}` };
+        }
+      }
+
+      const existing = alarmsActive.find((a) => a.tag === tag);
+      if (breach) {
+        if (existing && existing.tier === breach.tier && existing.message.startsWith(breach.msg.slice(0, 6))) {
+          // same alarm continuing — bump count occasionally
+          if ((now - existing.last_occurred_at) > 30_000) {
+            existing.count += 1; existing.last_occurred_at = now;
+            wsBroadcast({ type: 'alarm_update', data: existing });
+          }
+        } else if (!existing) {
+          const a = makeAlarm(tag, breach.tier, 'process', breach.msg, tag.split('.')[0]);
+          alarmsActive.push(a); alarmsHistory.push(a);
+          wsBroadcast({ type: 'alarm_new', data: a });
+        }
+      } else if (existing && existing.state !== 'cleared' && (now - existing.last_occurred_at) > 8_000) {
+        // signal recovered for 8s → auto-clear
+        existing.state = 'cleared'; existing.cleared_at = now;
+        const idx = alarmsActive.indexOf(existing);
+        if (idx >= 0) alarmsActive.splice(idx, 1);
+        wsBroadcast({ type: 'alarm_cleared', data: { id: existing.id } });
+      }
+    }
+  }
+
+  // Disabled — replaced by threshold engine above
   setInterval(() => {
-    if (Math.random() < 0.4) {
+    if (false && Math.random() < 0.4) {
       const seedTags = ['TT-150B-Z3', 'PT-150T', 'FLT-06.PRESSURE', 'WIDTH-REAR.PV', 'SCL-REAR'];
       const tier = Math.random() < 0.3 ? 2 : 3;
       const tag = seedTags[Math.floor(Math.random() * seedTags.length)];
-      // Update existing or create new
       const existing = alarmsActive.find((a) => a.tag === tag);
       if (existing) {
         existing.count += 1;
