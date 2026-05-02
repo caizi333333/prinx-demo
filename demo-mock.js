@@ -19,22 +19,14 @@
   'use strict';
   if (window.__PRINX_DEMO_INSTALLED__) return;
 
-  // Self-gate: only activate on known demo hosts or when ?demo=1 is set.
-  // Real-backend deploys (e.g. VPS at prinx-api.example.com) won't trigger this.
-  const h = location.hostname;
+  // Activation: default ON. Skip only when explicit `?demo=0` (for VPS-backed
+  // deploys to disable). This is intentionally permissive — wherever this
+  // script is loaded, demo runs unless the URL says otherwise. Resilient to
+  // future hostname/domain/subpath changes.
   const params = new URLSearchParams(location.search);
-  const force = params.get('demo') === '1';
   const skip = params.get('demo') === '0';
-  const knownDemoHost = h === 'sunyancai.top' || h === 'www.sunyancai.top'
-    || h.endsWith('.pages.dev')
-    || h.endsWith('.workers.dev')
-    || h === 'localhost' || h === '127.0.0.1' || h === '';
   if (skip) {
-    console.log('[PRINX demo] ?demo=0 — disabled');
-    return;
-  }
-  if (!knownDemoHost && !force) {
-    console.log('[PRINX demo] non-demo host', h, '— mock layer not installed');
+    console.log('[PRINX demo] ?demo=0 — disabled by query param');
     return;
   }
   window.__PRINX_DEMO_INSTALLED__ = true;
@@ -634,7 +626,17 @@
     if (method === 'GET' && path === '/metrics') return new Response('# demo metrics not available', { status: 200 });
     if (method === 'GET' && (path === '/livez' || path === '/readyz')) return jsonResponse({ ok: true });
 
-    return jsonResponse({ error: { code: 'NOT_FOUND', message: `demo: no handler for ${method} ${path}` } }, 404);
+    // Safe fallback: never 404 a /api/* request (would spam console + break loaders).
+    // GET → empty array, POST → ok, others → empty object.
+    if (method === 'GET') {
+      console.debug('[PRINX demo] fallback empty array for', path);
+      return jsonResponse([]);
+    }
+    if (method === 'POST') {
+      console.debug('[PRINX demo] fallback ok for', method, path);
+      return jsonResponse({ ok: true, mocked: true });
+    }
+    return jsonResponse({ ok: true, mocked: true });
   }
 
   window.fetch = function (input, init = {}) {
