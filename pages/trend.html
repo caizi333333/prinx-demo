@@ -155,74 +155,58 @@
         <span class="chip">压力 · 8 ch</span>
         <span class="chip">称重 · 2 ch</span>
         <span class="chip">浮辊 · 9 ch</span>
-        <span class="text-mute" style="margin-left:auto">时间窗 · <b style="color:var(--fg-primary)">最近 30 分钟</b></span>
+        <span class="text-mute" style="margin-left:auto">时间窗
+          <button class="chip" data-tw="60" style="margin-left:6px">60s</button>
+          <button class="chip active" id="tw-default" data-tw="300">5min</button>
+          <button class="chip" data-tw="1800">30min</button>
+        </span>
       </div>
       <div class="stub-grid">
         <div class="stub-tile">
           <div class="stub-tile-eyebrow"><span>TT-DIE-T</span><span>°C</span></div>
           <div class="stub-tile-title">模头温度（5 区）</div>
-          <svg viewBox="0 0 800 200" preserveAspectRatio="none" style="width:100%;height:160px">
-            <g stroke="#1C232E" stroke-width="0.5"><line x1="0" y1="40" x2="800" y2="40"/><line x1="0" y1="80" x2="800" y2="80"/><line x1="0" y1="120" x2="800" y2="120"/><line x1="0" y1="160" x2="800" y2="160"/></g>
-            <polyline points="0,80 50,82 100,79 150,81 200,80 250,80 300,82 350,83 400,79 450,80 500,79 550,82 600,80 650,80 700,80 750,79 800,80" fill="none" stroke="#00E5FF" stroke-width="1.5"/>
-            <polyline points="0,82 100,80 200,81 300,80 400,82 500,81 600,80 700,82 800,81" fill="none" stroke="#4FC3F7" stroke-width="1.2" opacity="0.6"/>
-            <polyline points="0,84 100,86 200,85 300,87 400,86 500,89 600,88 700,90 800,90" fill="none" stroke="#FFB300" stroke-width="1.2" opacity="0.7"/>
-            <polyline points="0,80 100,79 200,80 300,79 400,80 500,79 600,80 700,79 800,80" fill="none" stroke="#A0AEC0" stroke-width="1" opacity="0.5"/>
-            <polyline points="0,81 100,80 200,81 300,82 400,80 500,81 600,80 700,80 800,81" fill="none" stroke="#A0AEC0" stroke-width="1" opacity="0.5"/>
-          </svg>
+          <svg class="trend-chart" data-trend="TT-DIE-T.PV,TT-DIE-TM.PV,TT-DIE-M.PV,TT-DIE-BM.PV,TT-DIE-B.PV" data-colors="#00E5FF,#4FC3F7,#7c8,#FFB300,#A0AEC0" viewBox="0 0 800 200" style="width:100%;height:160px"></svg>
           <div class="row gap-4" style="font-family:var(--ff-data);font-size:10px;color:var(--fg-tertiary);letter-spacing:var(--tracking-wide);text-transform:uppercase">
-            <span><span style="color:#00E5FF">●</span> 上模 75.0</span>
-            <span><span style="color:#4FC3F7">●</span> 上中 75.0</span>
-            <span><span style="color:#FFB300">●</span> 下中 74.8</span>
-            <span><span style="color:#A0AEC0">●</span> 中模/下模</span>
+            <span><span style="color:#00E5FF">●</span> 上模 <span data-signal="TT-DIE-T.PV" data-precision="1">--</span></span>
+            <span><span style="color:#4FC3F7">●</span> 上中 <span data-signal="TT-DIE-TM.PV" data-precision="1">--</span></span>
+            <span><span style="color:#7c8">●</span> 中 <span data-signal="TT-DIE-M.PV" data-precision="1">--</span></span>
+            <span><span style="color:#FFB300">●</span> 下中 <span data-signal="TT-DIE-BM.PV" data-precision="1">--</span></span>
+            <span><span style="color:#A0AEC0">●</span> 下模 <span data-signal="TT-DIE-B.PV" data-precision="1">--</span></span>
           </div>
         </div>
 
         <div class="stub-tile">
           <div class="stub-tile-eyebrow"><span>EXT.SPEED</span><span>RPM</span></div>
           <div class="stub-tile-title">挤出机转速（4 路）</div>
-          <svg viewBox="0 0 800 200" preserveAspectRatio="none" style="width:100%;height:160px">
-            <g stroke="#1C232E" stroke-width="0.5"><line x1="0" y1="40" x2="800" y2="40"/><line x1="0" y1="100" x2="800" y2="100"/><line x1="0" y1="160" x2="800" y2="160"/></g>
-            <polyline points="0,30 100,30 200,30 300,30 400,30 500,30 600,30 700,30 800,30" fill="none" stroke="#00E5FF" stroke-width="1.5"/>
-            <polyline points="0,90 100,90 200,90 300,90 400,90 500,90 600,90 700,90 800,90" fill="none" stroke="#4FC3F7" stroke-width="1.2"/>
-            <polyline points="0,90 100,90 200,90 300,90 400,90 500,90 600,90 700,90 800,90" fill="none" stroke="#A0AEC0" stroke-width="1.2"/>
-            <polyline points="0,110 100,110 200,110 300,110 400,110 500,110 600,110 700,110 800,110" fill="none" stroke="#FFB300" stroke-width="1.2"/>
-          </svg>
+          <svg class="trend-chart" data-trend="EXT-90.SPEED,EXT-T.SPEED,EXT-M.SPEED,EXT-B.SPEED" data-colors="#00E5FF,#4FC3F7,#7c8,#FFB300" viewBox="0 0 800 200" style="width:100%;height:160px"></svg>
           <div class="row gap-4" style="font-family:var(--ff-data);font-size:10px;color:var(--fg-tertiary);letter-spacing:var(--tracking-wide);text-transform:uppercase">
-            <span><span style="color:#00E5FF">●</span> 90 · 7.6</span>
-            <span><span style="color:#4FC3F7">●</span> 上 · 5.1</span>
-            <span><span style="color:#A0AEC0">●</span> 中 · 5.1</span>
-            <span><span style="color:#FFB300">●</span> 下 · 4.2</span>
+            <span><span style="color:#00E5FF">●</span> 90 · <span data-signal="EXT-90.SPEED" data-precision="1">--</span></span>
+            <span><span style="color:#4FC3F7">●</span> 上 · <span data-signal="EXT-T.SPEED" data-precision="1">--</span></span>
+            <span><span style="color:#7c8">●</span> 中 · <span data-signal="EXT-M.SPEED" data-precision="1">--</span></span>
+            <span><span style="color:#FFB300">●</span> 下 · <span data-signal="EXT-B.SPEED" data-precision="1">--</span></span>
           </div>
         </div>
 
         <div class="stub-tile">
           <div class="stub-tile-eyebrow"><span>SCALE / WIDTH</span><span>KG·M</span></div>
           <div class="stub-tile-title">称重 + 测宽</div>
-          <svg viewBox="0 0 800 200" preserveAspectRatio="none" style="width:100%;height:160px">
-            <g stroke="#1C232E" stroke-width="0.5"><line x1="0" y1="40" x2="800" y2="40"/><line x1="0" y1="100" x2="800" y2="100"/><line x1="0" y1="160" x2="800" y2="160"/></g>
-            <line x1="0" y1="60" x2="800" y2="60" stroke="#4FC3F7" stroke-width="1" stroke-dasharray="4 4" opacity="0.4"/>
-            <polyline points="0,60 50,62 100,59 150,61 200,60 250,62 300,60 350,61 400,60 450,62 500,61 550,62 600,63 650,64 700,65 750,64 800,63" fill="none" stroke="#00E5FF" stroke-width="1.5"/>
-            <polyline points="0,80 100,80 200,80 300,80 400,80 500,80 600,80 700,80 800,80" fill="none" stroke="#A0AEC0" stroke-width="1"/>
-          </svg>
+          <svg class="trend-chart" data-trend="SCL-FRONT.PV,SCL-REAR.PV,WIDTH-REAR.PV" data-colors="#00E5FF,#A0AEC0,#FFB300" data-multi-axis="1" viewBox="0 0 800 200" style="width:100%;height:160px"></svg>
           <div class="row gap-4" style="font-family:var(--ff-data);font-size:10px;color:var(--fg-tertiary);letter-spacing:var(--tracking-wide);text-transform:uppercase">
-            <span><span style="color:#00E5FF">●</span> 前秤 0.750</span>
-            <span><span style="color:#A0AEC0">●</span> 后秤 0.748</span>
-            <span style="color:var(--accent)">SP 0.750</span>
+            <span><span style="color:#00E5FF">●</span> 前秤 <span data-signal="SCL-FRONT.PV" data-precision="3">--</span></span>
+            <span><span style="color:#A0AEC0">●</span> 后秤 <span data-signal="SCL-REAR.PV" data-precision="3">--</span></span>
+            <span><span style="color:#FFB300">●</span> 测宽 <span data-signal="WIDTH-REAR.PV" data-precision="1">--</span></span>
           </div>
         </div>
 
         <div class="stub-tile">
           <div class="stub-tile-eyebrow"><span>FLT.PRESSURE</span><span>MPA</span></div>
           <div class="stub-tile-title">浮动辊压力（9 辊）</div>
-          <svg viewBox="0 0 800 200" preserveAspectRatio="none" style="width:100%;height:160px">
-            <g stroke="#1C232E" stroke-width="0.5"><line x1="0" y1="40" x2="800" y2="40"/><line x1="0" y1="100" x2="800" y2="100"/><line x1="0" y1="160" x2="800" y2="160"/></g>
-            <g opacity="0.7"><polyline points="0,140 100,140 200,140 300,140 400,140 500,140 600,140 700,140 800,140" stroke="#A0AEC0" stroke-width="1" fill="none"/><polyline points="0,160 800,160" stroke="#A0AEC0" stroke-width="1" fill="none"/><polyline points="0,80 800,80" stroke="#A0AEC0" stroke-width="1" fill="none"/></g>
-            <polyline points="0,40 800,40" fill="none" stroke="#FFB300" stroke-width="1.5"/>
-          </svg>
+          <svg class="trend-chart" data-trend="FLT-1.PRESSURE,FLT-3.PRESSURE,FLT-5.PRESSURE,FLT-6.PRESSURE,FLT-7.PRESSURE,FLT-8.PRESSURE,FLT-9.PRESSURE" data-colors="#A0AEC0,#7c8,#4FC3F7,#FFB300,#FB7,#caf,#f8a" viewBox="0 0 800 200" style="width:100%;height:160px"></svg>
           <div class="row gap-4" style="font-family:var(--ff-data);font-size:10px;color:var(--fg-tertiary);letter-spacing:var(--tracking-wide);text-transform:uppercase">
-            <span><span style="color:#FFB300">●</span> F-06 · 2.00 ↑</span>
-            <span><span style="color:#A0AEC0">●</span> F-03 / F-05 · 1.00</span>
-            <span>F-01 / F-04 · 0.30</span>
+            <span><span style="color:#FFB300">●</span> F-06 · <span data-signal="FLT-6.PRESSURE" data-precision="2">--</span> ↑</span>
+            <span><span style="color:#7c8">●</span> F-03 · <span data-signal="FLT-3.PRESSURE" data-precision="2">--</span></span>
+            <span><span style="color:#4FC3F7">●</span> F-05 · <span data-signal="FLT-5.PRESSURE" data-precision="2">--</span></span>
+            <span>F-1/4/7/8/9 各色</span>
           </div>
         </div>
       </div>
@@ -284,7 +268,7 @@ function tick() {
 }
 tick(); setInterval(tick, 1000);
 </script>
-<script src="../demo-mock.js?v=1777718035"></script>
-<script src="../live.js?v=1777718035"></script>
+<script src="../demo-mock.js?v=1777722274"></script>
+<script src="../live.js?v=1777722274"></script>
 </body>
 </html>

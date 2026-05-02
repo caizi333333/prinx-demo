@@ -209,6 +209,103 @@
   }
   setInterval(autoMountSparklines, 2000);
 
+  // ─── Multi-line Trend Chart (for trend.html stub-tile) ──────────────────
+
+  let trendWindowSec = 300;  // default 5min
+
+  function renderTrendChart(svg) {
+    const tagsCsv = svg.dataset.trend;
+    if (!tagsCsv) return;
+    const tags = tagsCsv.split(',').map(s => s.trim());
+    const colors = (svg.dataset.colors || '').split(',').map(s => s.trim());
+    const multiAxis = svg.dataset.multiAxis === '1';
+    const w = 800, h = 200, padL = 36, padR = 8, padT = 12, padB = 22;
+    const now = Date.now();
+    const winMs = trendWindowSec * 1000;
+    const fromMs = now - winMs;
+
+    // Collect series + global min/max
+    const seriesList = tags.map((tag, i) => {
+      const arr = (sigHistory.get(tag) || []).filter(p => p.ts >= fromMs);
+      return { tag, color: colors[i] || '#7cf', points: arr };
+    });
+    if (!seriesList.some(s => s.points.length >= 2)) {
+      svg.innerHTML = `<rect width="${w}" height="${h}" fill="#0a141c"/><text x="${w/2}" y="${h/2}" fill="#456" font-family="monospace" font-size="11" text-anchor="middle">收集数据中… (需 ≥2 个数据点 / 信号)</text>`;
+      return;
+    }
+
+    // Single y-axis: use global min/max across all series
+    let yMin = Infinity, yMax = -Infinity;
+    if (!multiAxis) {
+      for (const s of seriesList) for (const p of s.points) { if (p.value < yMin) yMin = p.value; if (p.value > yMax) yMax = p.value; }
+      const yPad = (yMax - yMin) * 0.12 || 0.5;
+      yMin -= yPad; yMax += yPad;
+    }
+
+    const innerW = w - padL - padR, innerH = h - padT - padB;
+    const xAt = (ts) => padL + ((ts - fromMs) / winMs) * innerW;
+    function yAtFor(value, sIdx) {
+      let lo, hi;
+      if (multiAxis) {
+        const arr = seriesList[sIdx].points;
+        lo = Math.min(...arr.map(p => p.value)); hi = Math.max(...arr.map(p => p.value));
+        const pad = (hi - lo) * 0.12 || 0.5; lo -= pad; hi += pad;
+      } else { lo = yMin; hi = yMax; }
+      return h - padB - ((value - lo) / (hi - lo)) * innerH;
+    }
+
+    let parts = `<rect width="${w}" height="${h}" fill="#0a141c"/>`;
+    // grid lines
+    for (let i = 0; i <= 4; i++) {
+      const ly = padT + (innerH / 4) * i;
+      parts += `<line x1="${padL}" y1="${ly}" x2="${w-padR}" y2="${ly}" stroke="#1a2a3a" stroke-width="0.5"/>`;
+    }
+    // y-axis labels (single axis only)
+    if (!multiAxis) {
+      for (let i = 0; i <= 4; i++) {
+        const v = yMax - ((yMax - yMin) / 4) * i;
+        const ly = padT + (innerH / 4) * i;
+        parts += `<text x="${padL-4}" y="${ly+3}" fill="#456" font-size="9" text-anchor="end" font-family="monospace">${v.toFixed(v > 100 ? 0 : 1)}</text>`;
+      }
+    }
+    // time axis ticks (4)
+    for (let i = 0; i <= 4; i++) {
+      const x = padL + (innerW / 4) * i;
+      const tsHere = fromMs + (winMs / 4) * i;
+      const secAgo = Math.round((now - tsHere) / 1000);
+      const lbl = secAgo === 0 ? '现在' : (secAgo >= 60 ? `-${Math.round(secAgo/60)}m` : `-${secAgo}s`);
+      parts += `<text x="${x}" y="${h-6}" fill="#456" font-size="9" text-anchor="middle" font-family="monospace">${lbl}</text>`;
+      parts += `<line x1="${x}" y1="${h-padB}" x2="${x}" y2="${h-padB+3}" stroke="#456" stroke-width="0.5"/>`;
+    }
+    // each series polyline
+    for (let i = 0; i < seriesList.length; i++) {
+      const s = seriesList[i]; if (s.points.length < 2) continue;
+      const pts = s.points.map(p => `${xAt(p.ts).toFixed(1)},${yAtFor(p.value, i).toFixed(1)}`).join(' ');
+      parts += `<polyline points="${pts}" fill="none" stroke="${s.color}" stroke-width="1.4" stroke-linejoin="round" opacity="0.95"/>`;
+      // Last value dot
+      const last = s.points[s.points.length - 1];
+      parts += `<circle cx="${xAt(last.ts).toFixed(1)}" cy="${yAtFor(last.value, i).toFixed(1)}" r="2.2" fill="${s.color}"/>`;
+    }
+    svg.innerHTML = parts;
+  }
+
+  function renderAllTrendCharts() {
+    document.querySelectorAll('svg.trend-chart[data-trend]').forEach(renderTrendChart);
+  }
+  setInterval(renderAllTrendCharts, 1000);
+
+  // Time window switcher
+  document.addEventListener('click', (e) => {
+    const t = e.target;
+    if (!(t instanceof HTMLElement) || !t.dataset.tw) return;
+    const sec = parseInt(t.dataset.tw, 10);
+    if (!Number.isFinite(sec)) return;
+    trendWindowSec = sec;
+    document.querySelectorAll('[data-tw]').forEach(b => b.classList.remove('active'));
+    t.classList.add('active');
+    renderAllTrendCharts();
+  });
+
   function cssEscape(s) {
     return String(s).replace(/(["'\\])/g, '\\$1');
   }
@@ -872,12 +969,49 @@
     const POPPED = 'prinx.tour_popped';
     if (!sessionStorage.getItem(POPPED) && location.pathname.includes('overview.html')) {
       setTimeout(() => {
-        ball.click();
+        showWelcomeCard();
         sessionStorage.setItem(POPPED, '1');
-        // Auto-close after 6s
-        setTimeout(() => { if (panel.style.display === 'block') ball.click(); }, 6000);
-      }, 1500);
+      }, 1200);
     }
+  }
+
+  function showWelcomeCard() {
+    if (document.getElementById('prinx-welcome')) return;
+    const card = document.createElement('div');
+    card.id = 'prinx-welcome';
+    card.style.cssText = 'position:fixed;inset:0;z-index:10001;background:rgba(0,8,15,.78);display:flex;align-items:center;justify-content:center;backdrop-filter:blur(2px);';
+    card.innerHTML = `
+      <div style="width:560px;max-width:92vw;background:#0b1620;border:1px solid #3a557a;font-family:var(--ff-cn,sans-serif);color:#cfe;padding:0;box-shadow:0 12px 40px rgba(0,0,0,.7);">
+        <div style="padding:14px 22px;background:linear-gradient(90deg,#001a2a,#0a2a3a);border-bottom:1px solid #3a557a;">
+          <span style="font-size:18px;letter-spacing:.08em;color:#7cf">PRINX HMI · 6# 胎侧四复合挤出生产线</span>
+          <span style="float:right;font-family:var(--ff-data,monospace);font-size:11px;color:#789;margin-top:5px">DEMO · 浏览器内模拟</span>
+        </div>
+        <div style="padding:20px 24px;">
+          <div style="font-size:14px;line-height:1.7;color:#cfe">
+            欢迎查看本系统演示。所有数据由浏览器内模拟器实时生成，<b style="color:#7cf">无后端依赖</b>。
+          </div>
+          <div style="margin:16px 0;font-family:var(--ff-data,monospace);font-size:12px;color:#9cf;letter-spacing:.05em;line-height:1.8">
+            ▸ 物理耦合 · 速度→压力→电流 真实因果<br>
+            ▸ 7 道安全闸 · PINN 推荐到 PLC 的安全审核<br>
+            ▸ 工单生命周期 · 自动完成→切下一单<br>
+            ▸ 阈值告警 · 滤网压差累积自动报警
+          </div>
+          <div style="margin-top:16px;padding:14px 16px;background:#001a2a;border:1px solid #7cf;color:#cfe;font-size:13px;line-height:1.5;">
+            <b style="color:#7cf">▶ 推荐</b>：点下方按钮自动播放 <b>5 分钟生产价值闭环剧本</b>，看完一遍就懂这条线在做什么。
+          </div>
+        </div>
+        <div style="padding:14px 22px;background:#0a1a26;display:flex;gap:10px;justify-content:flex-end;">
+          <button id="welcome-skip" style="padding:9px 18px;background:transparent;color:#789;border:1px solid #3a557a;font-family:var(--ff-cn);font-size:13px;cursor:pointer">自己看</button>
+          <button id="welcome-play" style="padding:9px 22px;background:#7cf;color:#001;border:0;font-family:var(--ff-cn);font-size:13px;font-weight:600;cursor:pointer;letter-spacing:.05em">▶ 播放 5 分钟剧本</button>
+        </div>
+      </div>`;
+    document.body.appendChild(card);
+    document.getElementById('welcome-skip').onclick = () => card.remove();
+    document.getElementById('welcome-play').onclick = async () => {
+      card.remove();
+      try { await fetch('/api/demo/scenario/start', { method: 'POST' }); }
+      catch (e) { console.warn('script start failed', e); }
+    };
   }
 
   // ─── Auto-start ─────────────────────────────────────────────────────────
