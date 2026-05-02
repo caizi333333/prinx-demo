@@ -2,14 +2,20 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "headers": [
     {
-      "source": "/(.*\\.html)",
+      "source": "/((?!_next/static).*)\\.html",
       "headers": [
         { "key": "Cache-Control", "value": "public, max-age=0, must-revalidate, s-maxage=0" },
         { "key": "X-Content-Type-Options", "value": "nosniff" }
       ]
     },
     {
-      "source": "/(.*\\.(js|css))",
+      "source": "/((?!_next/static).*)\\.js",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=300, s-maxage=300" }
+      ]
+    },
+    {
+      "source": "/((?!_next/static).*)\\.css",
       "headers": [
         { "key": "Cache-Control", "value": "public, max-age=300, s-maxage=300" }
       ]
