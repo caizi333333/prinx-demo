@@ -9,10 +9,12 @@
   .ctrl-canvas {
     display: grid;
     grid-template-columns: 360px 1fr 420px;
+    grid-template-rows: auto 1fr;
     gap: var(--sp-2);
     height: 100%;
     overflow: hidden;
   }
+  .ctrl-canvas > .panel { grid-row: 2; }
   .panel {
     background: var(--bg-panel);
     border: 1px solid var(--line-subtle);
@@ -98,6 +100,93 @@
   .estop-btn:hover { background: #ff5252; color: #001; }
 
   .empty { color: var(--fg-tertiary); font-family: var(--ff-data); font-size: 12px; padding: 24px; text-align: center; }
+
+  /* v0.5.1 readability */
+  .intro-banner {
+    grid-column: 1 / -1;
+    padding: 10px 14px;
+    background: linear-gradient(90deg, rgba(0,229,255,.08), rgba(0,229,255,.02));
+    border: 1px solid rgba(0,229,255,.25);
+    font-family: var(--ff-cn);
+    font-size: 13px;
+    color: var(--fg-secondary);
+    line-height: 1.6;
+    display: flex; gap: 12px; align-items: center;
+  }
+  .intro-banner b { color: var(--accent); font-weight: 500; }
+  .intro-banner .arrow { color: var(--accent); font-size: 16px; }
+  .intro-banner .close-x {
+    margin-left: auto; cursor: pointer; padding: 2px 8px;
+    color: var(--fg-tertiary); border: 1px solid var(--line-subtle);
+    font-family: var(--ff-data); font-size: 11px;
+  }
+  .intro-banner .close-x:hover { color: var(--accent); border-color: var(--accent); }
+
+  .mode-btn .mode-sub {
+    display: block; margin-top: 4px;
+    font-family: var(--ff-cn); font-size: 11px; opacity: 0.7;
+    text-transform: none; letter-spacing: 0;
+  }
+  .mode-btn.active .mode-sub { opacity: 0.85; }
+
+  /* Tooltip on title hover */
+  .panel-head [title] { cursor: help; border-bottom: 1px dotted var(--fg-tertiary); }
+
+  /* Gate cell with bilingual label + tooltip */
+  .gate-cell {
+    position: relative;
+    display: flex; flex-direction: column; align-items: center;
+    padding: 8px 4px;
+    cursor: help;
+  }
+  .gate-cell .gate-cn {
+    display: block; font-family: var(--ff-cn); font-size: 10px;
+    color: var(--fg-secondary); margin-top: 3px;
+  }
+  .gate-cell.hot .gate-cn { color: #ffb0b0; }
+  .gate-cell:hover::after {
+    content: attr(data-help);
+    position: absolute; bottom: 100%; left: 50%; transform: translateX(-50%);
+    width: 220px; padding: 8px 10px;
+    background: #001218; border: 1px solid var(--accent);
+    color: var(--fg-primary); font-family: var(--ff-cn); font-size: 12px;
+    line-height: 1.4; letter-spacing: 0; text-transform: none;
+    z-index: 100; box-shadow: 0 4px 16px rgba(0,0,0,.6);
+    pointer-events: none;
+  }
+
+  /* Cycle item — friendlier */
+  .cycle-summary {
+    display: flex; align-items: baseline; gap: 12px;
+    margin: 6px 0;
+  }
+  .cycle-applied { color: #4caf50; font-weight: 600; font-size: 14px; }
+  .cycle-rejected { color: #ff5252; font-weight: 600; font-size: 14px; }
+  .cycle-rejected.zero { color: var(--fg-tertiary); font-weight: 400; }
+  .cycle-applied.zero { color: var(--fg-tertiary); font-weight: 400; }
+  .cycle-failed-gates {
+    display: inline-flex; gap: 4px; flex-wrap: wrap;
+  }
+  .cycle-failed-gates .badge {
+    padding: 1px 6px; background: #2a0808;
+    color: #ffb0b0; border: 1px solid #ff5252;
+    font-family: var(--ff-data); font-size: 10px;
+    letter-spacing: .05em; text-transform: uppercase;
+  }
+  .cycle-prop-line {
+    margin-top: 4px; font-family: var(--ff-data); font-size: 11px;
+    color: var(--fg-tertiary);
+  }
+  .cycle-prop-line code {
+    color: var(--fg-secondary); padding: 1px 4px;
+    background: rgba(255,255,255,.04); border-radius: 2px;
+  }
+
+  /* Mobile fallback (basic) */
+  @media (max-width: 900px) {
+    .ctrl-canvas { grid-template-columns: 1fr; overflow-y: auto; }
+    .panel-body { max-height: 60vh; }
+  }
 </style>
 </head>
 <body class="page">
@@ -113,52 +202,71 @@
 
   <main class="ctrl-canvas">
 
+    <!-- Intro / one-line explainer -->
+    <div class="intro-banner" id="intro-banner">
+      <span class="arrow">→</span>
+      <div>
+        <b>PINN 模型</b> 根据当前工艺给出新设定值（SP）<span class="arrow">→</span> 中央 <b>7 道安全闸</b> 逐道审核
+        <span class="arrow">→</span> 通过的才写到 <b>PLC</b>。下方左栏看模式，中栏看 cycle 流水，右栏看 PINN 健康。
+      </div>
+      <span class="close-x" id="close-intro">收起</span>
+    </div>
+
     <!-- LEFT: Mode + Config + ESTOP -->
     <section class="panel">
-      <div class="panel-head"><span>控制模式</span><span id="mode-badge" class="corner-mark">--</span></div>
+      <div class="panel-head">
+        <span title="控制模式决定 PINN 推荐如何被应用：手动忽略 / 顾问待确认 / 自动直写">控制模式</span>
+        <span id="mode-badge" class="corner-mark">--</span>
+      </div>
       <div class="panel-body">
         <div class="mode-row">
-          <button class="mode-btn" data-set-mode="manual">Manual</button>
-          <button class="mode-btn" data-set-mode="advisory">Advisory</button>
-          <button class="mode-btn" data-set-mode="auto_tune">Auto-tune</button>
+          <button class="mode-btn" data-set-mode="manual">Manual<span class="mode-sub">忽略 PINN</span></button>
+          <button class="mode-btn" data-set-mode="advisory">Advisory<span class="mode-sub">人工确认</span></button>
+          <button class="mode-btn" data-set-mode="auto_tune">Auto-tune<span class="mode-sub">自动写回 (LV3+)</span></button>
         </div>
 
         <div class="kv">
-          <span class="k">cycle interval</span><span class="v" id="cfg-interval">--</span>
-          <span class="k">deviation max</span><span class="v" id="cfg-dev">--</span>
-          <span class="k">rate limit</span><span class="v" id="cfg-rate">--</span>
-          <span class="k">enabled by</span><span class="v" id="cfg-by">--</span>
-          <span class="k">enabled at</span><span class="v" id="cfg-at">--</span>
-          <span class="k">last cycle</span><span class="v" id="cfg-last">--</span>
+          <span class="k" title="auto_tune 模式下两次自动调整间隔">循环间隔</span><span class="v" id="cfg-interval">--</span>
+          <span class="k" title="单次 SP 调整不能超过当前值的此百分比">单次幅度</span><span class="v" id="cfg-dev">--</span>
+          <span class="k" title="同一 SP 两次调整最小间隔">最小间隔</span><span class="v" id="cfg-rate">--</span>
+          <span class="k">已启用</span><span class="v" id="cfg-by">--</span>
+          <span class="k">启用时间</span><span class="v" id="cfg-at">--</span>
+          <span class="k">上次循环</span><span class="v" id="cfg-last">--</span>
         </div>
 
-        <h4 style="margin-top:16px; font-size:12px; color:var(--fg-tertiary); letter-spacing:.1em; text-transform:uppercase;">Gate 拒绝分布</h4>
+        <h4 style="margin-top:16px; font-size:12px; color:var(--fg-tertiary); letter-spacing:.1em; text-transform:uppercase;">7 道安全闸 · 拒绝次数 <span style="opacity:.6;text-transform:none;letter-spacing:0">（鼠标悬停看说明）</span></h4>
         <div class="gate-grid" id="gate-grid"></div>
 
-        <button class="estop-btn" id="estop-btn">⚠ E-STOP</button>
+        <button class="estop-btn" id="estop-btn">⚠ E-STOP · 急停</button>
       </div>
     </section>
 
     <!-- CENTER: Cycle stream -->
     <section class="panel">
-      <div class="panel-head"><span>实时 Cycle 流</span><span id="cycle-count" class="corner-mark">0 cycles</span></div>
-      <div class="panel-body" id="cycle-stream"><div class="empty">等待 cycle…</div></div>
+      <div class="panel-head">
+        <span title="一个 cycle = PINN 给一组 SP 推荐 → 7 道闸审核 → 决定">实时 Cycle 流</span>
+        <span id="cycle-count" class="corner-mark">0 个</span>
+      </div>
+      <div class="panel-body" id="cycle-stream"><div class="empty">等待 cycle…<br><br>提示：右下角点 DEMO 可手动触发</div></div>
     </section>
 
     <!-- RIGHT: PINN status + Recent SP changes -->
     <section class="panel">
-      <div class="panel-head"><span>PINN 状态</span><span id="pinn-breaker" class="corner-mark">--</span></div>
+      <div class="panel-head">
+        <span title="PINN 服务的健康状态。降级时 Gate 7 (source) 会拒绝 auto_tune">PINN 状态</span>
+        <span id="pinn-breaker" class="corner-mark">--</span>
+      </div>
       <div class="panel-body">
         <div id="pinn-status" class="pinn-status ok">PINN: 正常</div>
         <div class="kv">
-          <span class="k">source</span><span class="v" id="pinn-source">--</span>
-          <span class="k">model</span><span class="v" id="pinn-model">--</span>
-          <span class="k">healthy</span><span class="v" id="pinn-healthy">--</span>
-          <span class="k">breaker</span><span class="v" id="pinn-breaker-state">--</span>
+          <span class="k" title="pinn=真模型；mock_fallback=PINN 不可达，用兜底公式">数据源</span><span class="v" id="pinn-source">--</span>
+          <span class="k">in_use 模型</span><span class="v" id="pinn-model">--</span>
+          <span class="k">健康</span><span class="v" id="pinn-healthy">--</span>
+          <span class="k" title="熔断器状态：closed=正常 / open=连续失败已断开">熔断器</span><span class="v" id="pinn-breaker-state">--</span>
           <span class="k">最近置信度</span><span class="v" id="pinn-conf">--</span>
         </div>
 
-        <h4 style="margin-top:16px; font-size:12px; color:var(--fg-tertiary); letter-spacing:.1em; text-transform:uppercase;">最近 SP 写回</h4>
+        <h4 style="margin-top:16px; font-size:12px; color:var(--fg-tertiary); letter-spacing:.1em; text-transform:uppercase;">最近成功写到 PLC</h4>
         <div id="recent-sp" class="cycle-list"><div class="empty">尚无写回</div></div>
       </div>
     </section>
@@ -168,7 +276,19 @@
 <script src="../demo-mock.js"></script>
 <script src="../live.js"></script>
 <script>
-const GATES = ['source', 'alarm', 'mode', 'shadow', 'range', 'deviation', 'rate'];
+const GATE_META = {
+  source:    { cn: '数据源',  tip: 'Gate 7 (v0.5)：PINN 处于 mock_fallback 时不允许 auto_tune（防伪劣模型直写 PLC）' },
+  alarm:     { cn: '告警',    tip: 'Gate 6：有 Tier 1/2 告警未确认时拒绝任何 SP 写入' },
+  mode:      { cn: '模式',    tip: 'Gate 4：当前不在 advisory/auto_tune 模式时拒绝（Manual 模式纯人工）' },
+  shadow:    { cn: '影子',    tip: 'Gate 5：新模型在影子期，预测仍记录但不写到 PLC，对比满意后才升 in_use' },
+  range:     { cn: '量程',    tip: 'Gate 1：SP 不能超信号定义的物理范围（如挤出机速度 0-10 RPM）' },
+  deviation: { cn: '幅度',    tip: 'Gate 2：单次调整不能超过当前 SP 的 ±5%（防一次跳得过大）' },
+  rate:      { cn: '速率',    tip: 'Gate 3：同一 SP 两次调整间隔不能少于 10 分钟（防抖动）' },
+};
+const GATES = Object.keys(GATE_META);
+const TRIGGER_CN = {
+  auto_tune_cycle: '自动循环', operator_apply: '操作员触发', operator_advisory: '操作员顾问',
+};
 const cycleStream = document.getElementById('cycle-stream');
 const cycleCount = document.getElementById('cycle-count');
 const recentSp = document.getElementById('recent-sp');
@@ -217,10 +337,11 @@ function renderConfig(cfg) {
   document.querySelectorAll('[data-set-mode]').forEach((btn) => {
     btn.classList.toggle('active', btn.dataset.setMode === cfg.mode);
   });
-  document.getElementById('mode-badge').textContent = cfg.mode.toUpperCase();
-  document.getElementById('cfg-interval').textContent = cfg.cycle_interval_sec + ' sec';
+  const modeCn = { manual: 'MANUAL · 全人工', advisory: 'ADVISORY · 顾问', auto_tune: 'AUTO-TUNE · 自动' };
+  document.getElementById('mode-badge').textContent = modeCn[cfg.mode] || cfg.mode.toUpperCase();
+  document.getElementById('cfg-interval').textContent = (cfg.cycle_interval_sec / 60).toFixed(0) + ' 分钟';
   document.getElementById('cfg-dev').textContent = '±' + cfg.gates.deviation_pct_max + '%';
-  document.getElementById('cfg-rate').textContent = cfg.gates.rate_limit_sec + ' sec';
+  document.getElementById('cfg-rate').textContent = (cfg.gates.rate_limit_sec / 60).toFixed(0) + ' 分钟';
   document.getElementById('cfg-by').textContent = cfg.enabled_by || '—';
   document.getElementById('cfg-at').textContent = cfg.enabled_at ? fmtTime(cfg.enabled_at) : '—';
   document.getElementById('cfg-last').textContent = cfg.last_cycle_at ? fmtTime(cfg.last_cycle_at) : '—';
@@ -231,35 +352,47 @@ function renderStats(stats) {
   grid.innerHTML = '';
   for (const g of GATES) {
     const n = stats.by_gate[g] ?? 0;
+    const meta = GATE_META[g];
     const cell = document.createElement('div');
     cell.className = 'gate-cell' + (n > 0 ? ' hot' : '');
-    cell.innerHTML = `${g.toUpperCase()}<span class="num">${n}</span>`;
+    cell.dataset.help = meta.tip;
+    cell.innerHTML = `${g.toUpperCase()}<span class="num">${n}</span><span class="gate-cn">${meta.cn}</span>`;
     grid.appendChild(cell);
   }
 }
 
 function renderCycles() {
-  if (cycles.length === 0) { cycleStream.innerHTML = '<div class="empty">等待 cycle…</div>'; return; }
-  cycleCount.textContent = cycles.length + ' cycles';
+  if (cycles.length === 0) { cycleStream.innerHTML = '<div class="empty">等待 cycle…<br><br>提示：右下角点 DEMO 可手动触发</div>'; return; }
+  cycleCount.textContent = cycles.length + ' 个';
   cycleStream.innerHTML = cycles.slice(0, 20).map((c) => {
-    const status = c.overall_status || c.applied_count > 0 ? 'applied' : 'rejected';
     const cls = c.overall_status === 'applied' ? 'applied'
               : c.overall_status === 'partial' ? 'partial' : 'rejected';
     const sourceCls = c.pinn_source === 'mock_fallback' ? 'cycle-source-mock' : '';
     const ts = fmtTime(c.timestamp || c.ts || Date.now());
-    const props = (c.proposals || []).slice(0, 3).map((p) => `${p.tag}: ${p.current?.toFixed(2)}→${p.proposed?.toFixed(2)} (${p.decision})`).join(' · ');
+    const trigger = TRIGGER_CN[c.trigger] || c.trigger || '';
+    const conf = c.pinn_confidence ? (c.pinn_confidence * 100).toFixed(0) + '% 置信' : '';
     const failedGates = (c.proposals || []).flatMap((p) => p.gates.filter((g) => !g.passed).map((g) => g.gate));
     const failedSet = [...new Set(failedGates)];
+    const failedHtml = failedSet.length
+      ? `<span class="cycle-failed-gates">失败闸 ${failedSet.map(g => `<span class="badge" title="${GATE_META[g]?.tip || ''}">${GATE_META[g]?.cn || g}</span>`).join('')}</span>`
+      : '';
+    const propsHtml = (c.proposals || []).slice(0, 3).map((p) => {
+      const arrow = p.decision === 'applied' ? '✓ 已写' : p.decision === 'shadow_logged' ? '◇ 影子' : '× 拒';
+      return `<div class="cycle-prop-line"><code>${p.tag}</code>: ${p.current?.toFixed(2) ?? '?'} → ${p.proposed?.toFixed(2) ?? '?'} <b>${arrow}</b>${p.rejection_reason ? ` <span style="color:#ffb0b0">(${p.rejection_reason})</span>` : ''}</div>`;
+    }).join('');
+
     return `
       <div class="cycle-item ${cls}">
         <div class="cycle-meta">
-          <span>${ts} · ${c.trigger || ''}</span>
-          <span class="${sourceCls}">${c.pinn_source || 'pinn'} · ${c.pinn_confidence ? (c.pinn_confidence * 100).toFixed(0) + '%' : '--'}</span>
+          <span>${ts} · ${trigger}</span>
+          <span class="${sourceCls}">${c.pinn_source === 'mock_fallback' ? '⚠ mock' : 'PINN'} · ${conf}</span>
         </div>
-        <div class="cycle-detail">
-          ${c.applied_count}✓ · ${c.rejected_count}✗ ${failedSet.length ? '· 失败闸: ' + failedSet.join(',') : ''}
+        <div class="cycle-summary">
+          <span class="cycle-applied ${c.applied_count === 0 ? 'zero' : ''}">应用 ${c.applied_count}</span>
+          <span class="cycle-rejected ${c.rejected_count === 0 ? 'zero' : ''}">拒绝 ${c.rejected_count}</span>
+          ${failedHtml}
         </div>
-        ${props ? `<div class="cycle-meta" style="margin-top:4px">${props}</div>` : ''}
+        ${propsHtml}
       </div>
     `;
   }).join('');
@@ -296,6 +429,16 @@ document.querySelectorAll('[data-set-mode]').forEach((btn) => {
       await loadConfig();
     } catch (e) { alert('切换失败: ' + e.message); }
   });
+});
+
+// Intro banner close
+const introKey = 'prinx.control.intro_dismissed';
+if (sessionStorage.getItem(introKey)) {
+  document.getElementById('intro-banner').style.display = 'none';
+}
+document.getElementById('close-intro')?.addEventListener('click', () => {
+  document.getElementById('intro-banner').style.display = 'none';
+  sessionStorage.setItem(introKey, '1');
 });
 
 // E-STOP
