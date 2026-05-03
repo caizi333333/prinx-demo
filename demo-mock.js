@@ -229,11 +229,12 @@
     }
     lData = Math.sqrt(lData / dataTags.length);
 
-    // L_continuity: 进口流量 ≈ 出口卷取速度 × 截面积
-    // mass flux: ρ·A·v 应保持各段一致
-    const inFlux = ['T','M','B'].reduce((s,id) => s + (state[`EXT-${id}.SPEED`]?.value ?? 5) * 0.32, 0); // 截面 0.32cm²
-    const outFlux = (state['TAKEUP.SPEED']?.value ?? 5) * (state['WIDTH-REAR.PV']?.value ?? 165) / 100 * 0.34;  // mm·m/min
-    const lCont = Math.abs(inFlux - outFlux) / Math.max(inFlux, outFlux);
+    // L_continuity: 进口质量流量 ≈ 出口质量流量（4 复合中胎侧分得 ~38%）
+    // 上/中/下三段挤出机各 0.55 kg·min⁻¹·RPM⁻¹，胎侧组分占比 0.38
+    const inFlowKgMin = ['T','M','B'].reduce((s,id) => s + (state[`EXT-${id}.SPEED`]?.value ?? 5) * 0.55, 0) * 0.38;
+    // 出口 = width × thickness × take-up × density (假设标称 thickness 3.4mm)
+    const outFlowKgMin = ((state['WIDTH-REAR.PV']?.value ?? 165) / 1000) * 0.0034 * (state['TAKEUP.SPEED']?.value ?? 5) * 1100;
+    const lCont = Math.abs(inFlowKgMin - outFlowKgMin) / Math.max(inFlowKgMin, outFlowKgMin, 1e-3);
 
     // L_momentum: 压力梯度 vs 速度 — Hagen-Poiseuille 形式 ΔP ∝ μ·v
     // 压力差大但速度低 → 残差大（堵料预兆）
@@ -244,7 +245,7 @@
       .map(k => state[k]?.value ?? 5).reduce((a,b)=>a+b,0)/3;
     const pAvg = ['EXT-T.PRESSURE','EXT-M.PRESSURE','EXT-B.PRESSURE']
       .map(k => state[k]?.value ?? 18).reduce((a,b)=>a+b,0)/3;
-    const expectedP = 14 * muRel * (speedAvg / 5);
+    const expectedP = 12 * muRel * (speedAvg / 5);
     const lMom = Math.abs(pAvg - expectedP) / expectedP;
 
     // L_energy: 能量平衡 — 模头温度跟随 SP 的 PDE 残差
@@ -260,8 +261,8 @@
     const lambdas = invs.map(x => x / sum);
     const lTotal = lambdas[0]*lData + lambdas[1]*lCont + lambdas[2]*lMom + lambdas[3]*lEng;
 
-    // 物理一致性指数 PCI
-    const pci = Math.max(0, 1 - Math.max(lCont, lMom, lEng) * 5);
+    // 物理一致性指数 PCI — 三大 PDE 残差的最大值越小 PCI 越高（×3 系数把典型残差 0.05 映射到 0.85）
+    const pci = Math.max(0, Math.min(1, 1 - Math.max(lCont, lMom, lEng) * 3));
 
     // 累计 epoch（每 10s +1）
     const now = Date.now();
@@ -274,7 +275,7 @@
       },
       lambdas: { data: lambdas[0], continuity: lambdas[1], momentum: lambdas[2], energy: lambdas[3] },
       pci, mu_rel: muRel, expected_pressure: expectedP, actual_pressure: pAvg,
-      die_avg_temp: dieAvgT, in_flux: inFlux, out_flux: outFlux,
+      die_avg_temp: dieAvgT, in_flux: inFlowKgMin, out_flux: outFlowKgMin,
     };
   }
 

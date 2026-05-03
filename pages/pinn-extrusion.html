@@ -407,9 +407,9 @@
   }
 
   function lossClass(k, v) {
-    // 各项的"健康"阈值
-    const goodTh = { data: 0.02, continuity: 0.05, momentum: 0.10, energy: 0.03 };
-    const warnTh = { data: 0.05, continuity: 0.15, momentum: 0.25, energy: 0.08 };
+    // 各项的"健康"阈值（基于新 calibration）
+    const goodTh = { data: 0.02, continuity: 0.05, momentum: 0.05, energy: 0.03 };
+    const warnTh = { data: 0.05, continuity: 0.12, momentum: 0.15, energy: 0.08 };
     if (v < goodTh[k]) return 'good';
     if (v < warnTh[k]) return 'warn';
     return 'crit';
