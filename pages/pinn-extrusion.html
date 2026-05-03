@@ -1,0 +1,578 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=1600">
+<title>PINN 挤出建模 / 6#胎侧 — PRINX HMI</title>
+<link rel="stylesheet" href="../style.css?v=16">
+<style>
+  .pinn-canvas {
+    display: grid;
+    grid-template-columns: 420px 1fr 360px;
+    grid-template-rows: auto 1fr 320px;
+    gap: var(--sp-2);
+    overflow: hidden;
+    padding: var(--sp-2) var(--sp-3);
+    grid-template-areas:
+      "intro intro intro"
+      "arch  loss  lambda"
+      "pde   pde   pde";
+  }
+  .pinn-intro { grid-area: intro; padding: 10px 14px; background: linear-gradient(90deg, rgba(167,139,250,.08), rgba(167,139,250,.01)); border: 1px solid rgba(167,139,250,.25); font-family: var(--ff-cn); font-size: 13px; color: var(--fg-secondary); line-height: 1.65; }
+  .pinn-intro b { color: #a78bfa; font-weight: 500; }
+
+  .panel { background: var(--bg-panel); border: 1px solid var(--line-subtle); display: flex; flex-direction: column; overflow: hidden; min-height: 0; }
+  .panel-head { padding: var(--sp-3); font-family: var(--ff-data); font-size: 12px; letter-spacing: var(--tracking-wide); text-transform: uppercase; color: var(--fg-tertiary); border-bottom: 1px solid var(--line-subtle); display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+  .panel-head .accent { color: #a78bfa; font-weight: 600; letter-spacing: .15em; }
+  .panel-body { padding: var(--sp-3); overflow: auto; flex: 1; }
+
+  .arch-panel { grid-area: arch; }
+  .arch-svg { width: 100%; height: 280px; background: var(--bg-canvas); border: 1px solid var(--line-subtle); }
+  .arch-legend { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 10px; font-family: var(--ff-data); font-size: 11px; color: var(--fg-secondary); }
+  .arch-legend .item { display: flex; align-items: center; gap: 6px; }
+  .arch-legend .swatch { width: 10px; height: 10px; flex-shrink: 0; }
+
+  .loss-panel { grid-area: loss; }
+  .loss-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; height: 100%; }
+  .loss-card { background: var(--bg-canvas); border: 1px solid var(--line-subtle); padding: 10px 12px; display: flex; flex-direction: column; min-height: 0; }
+  .loss-card.total { grid-column: 1/-1; border-left: 3px solid #a78bfa; }
+  .loss-card .lbl { font-family: var(--ff-data); font-size: 10px; color: var(--fg-tertiary); text-transform: uppercase; letter-spacing: .12em; }
+  .loss-card .lbl-cn { font-family: var(--ff-cn); font-size: 11px; color: var(--fg-secondary); margin-top: 2px; }
+  .loss-card .pde { font-family: var(--ff-data); font-size: 10px; color: #fb8; margin-top: 2px; opacity: .85; }
+  .loss-card .val { font-family: var(--ff-data); font-size: 22px; font-weight: 600; color: var(--fg-primary); margin-top: 4px; font-variant-numeric: tabular-nums; }
+  .loss-card .val.good { color: #5a8; }
+  .loss-card .val.warn { color: #fb8; }
+  .loss-card .val.crit { color: #f88; }
+  .loss-card .spark { width: 100%; height: 36px; margin-top: 6px; }
+  .loss-card .lambda-tag { display: inline-block; margin-top: 4px; padding: 1px 6px; background: rgba(167,139,250,.12); color: #a78bfa; font-family: var(--ff-data); font-size: 10px; letter-spacing: .05em; }
+
+  .lambda-panel { grid-area: lambda; }
+  .lambda-bars { padding: 0 4px; }
+  .lambda-row { display: grid; grid-template-columns: 80px 1fr 56px; gap: 8px; align-items: center; padding: 6px 0; font-family: var(--ff-data); font-size: 12px; }
+  .lambda-row .nm { color: var(--fg-secondary); }
+  .lambda-row .bar { height: 8px; background: var(--bg-canvas); border: 1px solid var(--line-subtle); position: relative; }
+  .lambda-row .bar > span { position: absolute; top: 0; left: 0; height: 100%; background: linear-gradient(90deg, #a78bfa, #7dd3fc); transition: width .4s ease; }
+  .lambda-row .vv { text-align: right; color: var(--fg-primary); font-variant-numeric: tabular-nums; }
+
+  .epoch-block { padding: 14px; background: var(--bg-canvas); border: 1px solid var(--line-subtle); margin-top: 12px; font-family: var(--ff-data); }
+  .epoch-block .row { display: flex; justify-content: space-between; align-items: baseline; padding: 4px 0; }
+  .epoch-block .row .k { font-size: 10px; color: var(--fg-tertiary); text-transform: uppercase; letter-spacing: .1em; }
+  .epoch-block .row .v { font-size: 14px; color: var(--fg-primary); font-variant-numeric: tabular-nums; }
+  .epoch-block .row .v.big { font-size: 22px; color: #a78bfa; }
+
+  .pci-block { margin-top: 12px; padding: 10px 12px; background: var(--bg-canvas); border: 1px solid var(--line-subtle); }
+  .pci-bar { width: 100%; height: 22px; background: rgba(0,0,0,.3); border: 1px solid var(--line-subtle); position: relative; margin-top: 6px; overflow: hidden; }
+  .pci-bar > .fill { height: 100%; background: linear-gradient(90deg, #f88, #fb8 50%, #5a8); transition: width .4s ease; }
+  .pci-bar > .lbl { position: absolute; top: 0; left: 0; right: 0; height: 100%; display: flex; align-items: center; justify-content: center; font-family: var(--ff-data); font-size: 12px; color: #001; text-shadow: 0 0 2px rgba(255,255,255,.6); font-weight: 700; }
+
+  .pde-panel { grid-area: pde; }
+  .inverse-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; height: 100%; padding: 10px; }
+  .inverse-form { background: var(--bg-canvas); border: 1px solid var(--line-subtle); padding: 14px; display: flex; flex-direction: column; gap: 10px; }
+  .inverse-form .field { display: grid; grid-template-columns: 110px 1fr 60px; gap: 6px; align-items: center; font-family: var(--ff-data); font-size: 12px; }
+  .inverse-form .field .lbl { color: var(--fg-secondary); text-transform: uppercase; font-size: 10px; letter-spacing: .08em; }
+  .inverse-form .field input[type=range] { width: 100%; }
+  .inverse-form .field .vv { text-align: right; color: var(--fg-primary); font-variant-numeric: tabular-nums; }
+  .inverse-action { display: flex; gap: 8px; margin-top: auto; }
+
+  .inverse-result { background: var(--bg-canvas); border: 1px solid var(--line-subtle); padding: 14px; overflow: auto; }
+  .inverse-result .head { font-family: var(--ff-data); font-size: 11px; color: var(--fg-tertiary); text-transform: uppercase; letter-spacing: .1em; margin-bottom: 10px; }
+  .inverse-row { display: grid; grid-template-columns: 1fr 80px 80px 60px; gap: 8px; padding: 6px 4px; border-bottom: 1px solid var(--line-subtle); font-family: var(--ff-data); font-size: 12px; align-items: baseline; }
+  .inverse-row.head { color: var(--fg-tertiary); font-size: 10px; text-transform: uppercase; letter-spacing: .08em; }
+  .inverse-row .now { color: var(--fg-secondary); }
+  .inverse-row .rec { color: #a78bfa; font-weight: 600; }
+  .inverse-row .delta { text-align: right; }
+  .inverse-row .delta.up { color: #fb8; }
+  .inverse-row .delta.down { color: #7dd3fc; }
+  .inverse-row .delta.zero { color: var(--fg-tertiary); }
+  .inverse-row .unit { color: var(--fg-tertiary); font-size: 10px; }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- TOPBAR -->
+  <header class="topbar">
+    <a href="../design.html" class="brand" style="text-decoration:none"><span class="brand-mark">PRINX</span> <span class="brand-name">HMI / <b>EXT-LINE</b></span></a>
+    <div class="row" style="margin-left: var(--sp-4);">
+      <span class="line-chip"><span class="line-chip-dot" style="background: var(--fg-tertiary);"></span><span>5# 胎面</span><span style="opacity:.5">TREAD</span></span>
+      <span class="line-chip active"><span class="line-chip-dot"></span><span>6# 胎侧</span><span style="opacity:.7">SIDEWALL</span></span>
+    </div>
+    <div class="topbar-spacer"></div>
+    <div class="topbar-meta">
+      <div class="topbar-meta-item"><span class="topbar-meta-label">SHIFT</span><span class="topbar-meta-value" id="topbar-shift">B 班</span></div>
+      <div class="topbar-meta-item"><span class="topbar-meta-label">STATUS</span><span class="badge badge-running">运行</span></div>
+      <div class="clock" id="clock">--:--:--</div>
+      <div class="user-chip"><div class="user-avatar" id="user-avatar">LZ</div><div class="user-chip-text"><b id="user-name">李振华</b><span id="user-level">LV2</span></div></div>
+    </div>
+  </header>
+
+  <!-- SIDENAV -->
+  <nav class="sidenav">
+    <a href="overview.html" class="nav-item"><svg viewBox="0 0 24 24" fill="none"><path d="M3 12 L12 4 L21 12 M5 10 V20 H19 V10" stroke="currentColor" stroke-width="1.5"/></svg><span class="nav-item-label">主页</span></a>
+    <a href="recipe.html" class="nav-item"><svg viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="7" height="7" stroke="currentColor" stroke-width="1.5"/><rect x="14" y="3" width="7" height="7" stroke="currentColor" stroke-width="1.5"/><rect x="3" y="14" width="7" height="7" stroke="currentColor" stroke-width="1.5"/><rect x="14" y="14" width="7" height="7" stroke="currentColor" stroke-width="1.5"/></svg><span class="nav-item-label">配方</span></a>
+    <a href="control.html" class="nav-item"><svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.5"/><path d="M12 2 V5 M12 19 V22 M2 12 H5 M19 12 H22" stroke="currentColor" stroke-width="1.5"/></svg><span class="nav-item-label">闭环</span></a>
+    <a href="alarm.html" class="nav-item"><svg viewBox="0 0 24 24" fill="none"><path d="M12 2 L2 22 H22 L12 2 Z" stroke="currentColor" stroke-width="1.5"/><path d="M12 9 V14 M12 17 V18" stroke="currentColor" stroke-width="1.5"/></svg><span class="nav-item-label">报警</span></a>
+    <a href="trend.html" class="nav-item"><svg viewBox="0 0 24 24" fill="none"><path d="M3 17 L9 11 L13 15 L21 7" stroke="currentColor" stroke-width="1.5"/><path d="M15 7 H21 V13" stroke="currentColor" stroke-width="1.5"/></svg><span class="nav-item-label">趋势</span></a>
+    <a href="temperature.html" class="nav-item"><svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.5"/><path d="M12 2 V5 M12 19 V22 M22 12 H19 M5 12 H2" stroke="currentColor" stroke-width="1.5"/></svg><span class="nav-item-label">温控</span></a>
+    <a href="process.html" class="nav-item"><svg viewBox="0 0 24 24" fill="none"><path d="M3 12 H8 L10 6 L14 18 L16 12 H21" stroke="currentColor" stroke-width="1.5"/></svg><span class="nav-item-label">工艺</span></a>
+    <a href="quality.html" class="nav-item"><svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.5"/><path d="M8 12 L11 15 L16 9" stroke="currentColor" stroke-width="1.5" fill="none"/></svg><span class="nav-item-label">质量</span></a>
+    <a href="pinn-extrusion.html" class="nav-item active"><svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="2.5" fill="currentColor"/><circle cx="5" cy="6" r="1.6" fill="currentColor"/><circle cx="5" cy="12" r="1.6" fill="currentColor"/><circle cx="5" cy="18" r="1.6" fill="currentColor"/><circle cx="19" cy="9" r="1.6" fill="currentColor"/><circle cx="19" cy="15" r="1.6" fill="currentColor"/><path d="M5 6 L12 12 M5 12 L12 12 M5 18 L12 12 M12 12 L19 9 M12 12 L19 15" stroke="currentColor" stroke-width="0.8" opacity=".5"/></svg><span class="nav-item-label">PINN</span></a>
+    <a href="flow-field.html" class="nav-item"><svg viewBox="0 0 24 24" fill="none"><path d="M3 8 Q8 4 12 8 T21 8 M3 14 Q8 10 12 14 T21 14 M3 20 Q8 16 12 20 T21 20" stroke="currentColor" stroke-width="1.4" fill="none"/></svg><span class="nav-item-label">流场</span></a>
+    <a href="mes.html" class="nav-item"><svg viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="18" height="18" stroke="currentColor" stroke-width="1.5"/><path d="M3 9 H21 M9 3 V21" stroke="currentColor" stroke-width="1.5"/></svg><span class="nav-item-label">MES</span></a>
+    <a href="maintenance.html" class="nav-item"><svg viewBox="0 0 24 24" fill="none"><path d="M14 7 L17 4 L20 7 L17 10 Z" stroke="currentColor" stroke-width="1.5"/><path d="M14 7 L4 17 V20 H7 L17 10" stroke="currentColor" stroke-width="1.5"/></svg><span class="nav-item-label">维护</span></a>
+    <a href="report.html" class="nav-item"><svg viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="18" height="18" stroke="currentColor" stroke-width="1.5"/><path d="M7 9 H17 M7 13 H17 M7 17 H13" stroke="currentColor" stroke-width="1.5"/></svg><span class="nav-item-label">报表</span></a>
+    <a href="training.html" class="nav-item"><svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.5"/><path d="M8 12 L11 15 L16 9" stroke="currentColor" stroke-width="1.5" fill="none"/></svg><span class="nav-item-label">训练</span></a>
+  </nav>
+
+  <main class="pinn-canvas">
+
+    <div class="pinn-intro">
+      <span style="color:#a78bfa;font-size:16px;margin-right:6px">⌬</span>
+      <b>PINN 挤出建模实时面板</b> — 物理嵌入神经网络的 4 项损失实时分解：数据拟合 + 连续性方程 + 动量方程 + 能量方程，权重 λ 按 NTK 反比自适应。
+      右侧支持<b>反问题求解</b>：给定目标厚度/宽度/克重，反推推荐 SP 组合。理论参考：博士论文「物理信息神经网络在挤压成型过程中的智能建模」。
+    </div>
+
+    <!-- ARCHITECTURE -->
+    <section class="panel arch-panel">
+      <div class="panel-head"><span><span class="accent">PINN</span> · 网络架构 · DEMO</span><span style="color:var(--fg-tertiary);font-size:11px">输入 9 → 隐 4×64 → 输出 5</span></div>
+      <div class="panel-body">
+        <svg class="arch-svg" viewBox="0 0 400 280" preserveAspectRatio="xMidYMid meet">
+          <defs>
+            <linearGradient id="hidGrad" x1="0" x2="1" y1="0" y2="0">
+              <stop offset="0" stop-color="#7dd3fc" stop-opacity=".4"/>
+              <stop offset="1" stop-color="#a78bfa" stop-opacity=".7"/>
+            </linearGradient>
+          </defs>
+          <!-- Input column -->
+          <g font-family="var(--ff-data)" font-size="9" fill="#94a3b8">
+            <text x="14" y="18" text-anchor="start" fill="#7cf">INPUT (x)</text>
+          </g>
+          <g id="archInputs"></g>
+          <!-- Hidden layers -->
+          <g id="archHidden"></g>
+          <!-- Output column -->
+          <g font-family="var(--ff-data)" font-size="9" fill="#94a3b8">
+            <text x="386" y="18" text-anchor="end" fill="#a78bfa">OUTPUT (y)</text>
+          </g>
+          <g id="archOutputs"></g>
+          <!-- PDE constraints (overlay floating boxes) -->
+          <g id="archPde"></g>
+        </svg>
+        <div class="arch-legend">
+          <div class="item"><span class="swatch" style="background:#7cf"></span>输入：5 段温区 SP + 螺杆 RPM + 收卷速度 + 配方密度 + 模头几何参数</div>
+          <div class="item"><span class="swatch" style="background:#a78bfa"></span>输出：厚度 + 宽度 + 克重 + 出口压力 + 出口胶温</div>
+          <div class="item"><span class="swatch" style="background:#fb8"></span>物理约束：连续性 / 动量 / 能量 PDE</div>
+          <div class="item"><span class="swatch" style="background:#5a8"></span>损失加权：NTK 反比自适应</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- LOSS COMPONENTS -->
+    <section class="panel loss-panel">
+      <div class="panel-head"><span><span class="accent">LOSS</span> · 4 项损失分量 · 30 s</span><span id="loss-total" style="color:#a78bfa;font-family:var(--ff-data);font-size:13px">L = ─</span></div>
+      <div class="panel-body">
+        <div class="loss-grid">
+          <div class="loss-card" data-loss="data">
+            <span class="lbl">L_data · 数据项</span>
+            <span class="lbl-cn">PV ↔ SP 拟合残差</span>
+            <span class="pde">∑ ‖f_θ(x_i) - y_i‖²</span>
+            <span class="val" data-val>—</span>
+            <span class="lambda-tag" data-lam>λ = ─</span>
+            <svg class="spark" data-spark viewBox="0 0 200 40" preserveAspectRatio="none"></svg>
+          </div>
+          <div class="loss-card" data-loss="continuity">
+            <span class="lbl">L_continuity · 连续性</span>
+            <span class="lbl-cn">质量守恒残差</span>
+            <span class="pde">∂ρ/∂t + ∇·(ρv) = 0</span>
+            <span class="val" data-val>—</span>
+            <span class="lambda-tag" data-lam>λ = ─</span>
+            <svg class="spark" data-spark viewBox="0 0 200 40" preserveAspectRatio="none"></svg>
+          </div>
+          <div class="loss-card" data-loss="momentum">
+            <span class="lbl">L_momentum · 动量</span>
+            <span class="lbl-cn">N-S 方程残差（黏温耦合）</span>
+            <span class="pde">∇p = μ(T)∇²v + ρg</span>
+            <span class="val" data-val>—</span>
+            <span class="lambda-tag" data-lam>λ = ─</span>
+            <svg class="spark" data-spark viewBox="0 0 200 40" preserveAspectRatio="none"></svg>
+          </div>
+          <div class="loss-card" data-loss="energy">
+            <span class="lbl">L_energy · 能量</span>
+            <span class="lbl-cn">温度场对流-扩散残差</span>
+            <span class="pde">∂T/∂t + v·∇T = α∇²T</span>
+            <span class="val" data-val>—</span>
+            <span class="lambda-tag" data-lam>λ = ─</span>
+            <svg class="spark" data-spark viewBox="0 0 200 40" preserveAspectRatio="none"></svg>
+          </div>
+          <div class="loss-card total">
+            <span class="lbl">L_total · 加权总损失</span>
+            <span class="lbl-cn">L = Σ λᵢ · Lᵢ — NTK 反比加权</span>
+            <span class="val" data-loss-total>—</span>
+            <svg class="spark" data-spark-total viewBox="0 0 200 40" preserveAspectRatio="none"></svg>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ADAPTIVE λ -->
+    <section class="panel lambda-panel">
+      <div class="panel-head"><span><span class="accent">λ</span> · 自适应权重</span><span style="color:var(--fg-tertiary);font-size:11px">NTK INV-SCALE</span></div>
+      <div class="panel-body">
+        <div class="lambda-bars">
+          <div class="lambda-row"><span class="nm">λ_data</span><div class="bar"><span data-lambar="data" style="width:25%"></span></div><span class="vv" data-lamval="data">—</span></div>
+          <div class="lambda-row"><span class="nm">λ_cont</span><div class="bar"><span data-lambar="continuity" style="width:25%"></span></div><span class="vv" data-lamval="continuity">—</span></div>
+          <div class="lambda-row"><span class="nm">λ_mom</span><div class="bar"><span data-lambar="momentum" style="width:25%"></span></div><span class="vv" data-lamval="momentum">—</span></div>
+          <div class="lambda-row"><span class="nm">λ_eng</span><div class="bar"><span data-lambar="energy" style="width:25%"></span></div><span class="vv" data-lamval="energy">—</span></div>
+        </div>
+
+        <div class="epoch-block">
+          <div class="row"><span class="k">Epoch (累计)</span><span class="v big" id="pinn-epoch">—</span></div>
+          <div class="row"><span class="k">PINN 源</span><span class="v" id="pinn-source">—</span></div>
+          <div class="row"><span class="k">置信度</span><span class="v" id="pinn-conf">—</span></div>
+          <div class="row"><span class="k">μ_rel · 黏度</span><span class="v" id="pinn-mu">—</span></div>
+          <div class="row"><span class="k">in / out flux</span><span class="v" id="pinn-flux">—</span></div>
+        </div>
+
+        <div class="pci-block">
+          <div style="display:flex;justify-content:space-between;font-family:var(--ff-data);font-size:11px;color:var(--fg-tertiary);text-transform:uppercase;letter-spacing:.1em"><span>PCI · 物理一致性</span><span id="pci-state">—</span></div>
+          <div class="pci-bar"><div class="fill" id="pci-fill" style="width:75%"></div><span class="lbl" id="pci-lbl">—</span></div>
+          <div style="font-size:10px;color:var(--fg-tertiary);margin-top:6px;font-family:var(--ff-cn)">PCI = 1 - max(L_cont, L_mom, L_eng) × 5；&gt; 0.85 表示物理嵌入有效，模型可信。</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- INVERSE DESIGN (PDE constrained optimization) -->
+    <section class="panel pde-panel">
+      <div class="panel-head"><span><span class="accent">INVERSE</span> · 工艺反推 · 给定质量目标 → 推荐 SP</span><span style="color:var(--fg-tertiary);font-size:11px">PINN-BASED OPTIMIZATION</span></div>
+      <div class="panel-body" style="padding:0">
+        <div class="inverse-grid">
+          <div class="inverse-form">
+            <div style="font-family:var(--ff-data);font-size:11px;color:var(--fg-tertiary);text-transform:uppercase;letter-spacing:.1em">目标质量参数</div>
+            <div class="field"><span class="lbl">目标厚度</span><input type="range" id="inv-thickness" min="2.8" max="4.2" step="0.05" value="3.40"><span class="vv"><span id="inv-thickness-v">3.40</span><span class="unit"> mm</span></span></div>
+            <div class="field"><span class="lbl">目标宽度</span><input type="range" id="inv-width" min="120" max="200" step="1" value="165"><span class="vv"><span id="inv-width-v">165</span><span class="unit"> mm</span></span></div>
+            <div class="field"><span class="lbl">目标克重</span><input type="range" id="inv-weight" min="0.5" max="1.0" step="0.005" value="0.750"><span class="vv"><span id="inv-weight-v">0.750</span><span class="unit"> KG/M</span></span></div>
+            <div style="font-family:var(--ff-cn);font-size:11px;color:var(--fg-tertiary);margin-top:6px;line-height:1.5">滑动设置目标 → 点「反推」<br/>PINN 对 4 项 SP（3 段挤出机 RPM + 收卷速度）求解最优组合，min ‖f_θ(SP) - target‖² s.t. PDE 约束</div>
+            <div class="inverse-action">
+              <button class="btn btn-primary" id="inv-solve" style="flex:1">反推推荐 SP</button>
+              <button class="btn btn-ghost" id="inv-load-current" style="flex:1">读取当前实测</button>
+            </div>
+          </div>
+          <div class="inverse-result">
+            <div class="head" id="inv-status">→ 设置目标参数后点「反推」启动 PINN 反问题求解</div>
+            <div class="inverse-row head">
+              <span>SP 标签 / 含义</span><span style="text-align:right">现值</span><span style="text-align:right">推荐</span><span class="delta">Δ%</span>
+            </div>
+            <div id="inv-rows"></div>
+            <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--line-subtle);font-family:var(--ff-data);font-size:11px;color:var(--fg-tertiary)">
+              <div style="display:flex;justify-content:space-between;padding:2px 0"><span>residual ‖f-target‖</span><span id="inv-residual">—</span></div>
+              <div style="display:flex;justify-content:space-between;padding:2px 0"><span>iter (Adam steps)</span><span id="inv-iter">—</span></div>
+              <div style="display:flex;justify-content:space-between;padding:2px 0"><span>predicted PCI</span><span id="inv-pci">—</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- BOTTOM STATUS BAR -->
+  <div class="bottom-status">
+    <span><span class="status-dot status-dot-active"></span>EDGE</span>
+    <span><span class="status-dot status-dot-active"></span>在线</span>
+    <span style="margin-left:12px;color:var(--fg-tertiary)">PINN <b style="color:#a78bfa" id="bs-source">—</b></span>
+    <span style="margin-left:12px;color:var(--fg-tertiary)">epoch <b style="color:var(--fg-primary)" id="bs-epoch">—</b></span>
+    <span style="margin-left:12px;color:var(--fg-tertiary)">L<sub>total</sub> <b style="color:var(--fg-primary)" id="bs-loss">—</b></span>
+    <span style="margin-left:12px;color:var(--fg-tertiary)">PCI <b id="bs-pci">—</b></span>
+    <span style="margin-left:auto;color:var(--fg-tertiary)">DEMO · 模拟器</span>
+  </div>
+
+</div>
+
+<script src="../live.js?v=16" defer></script>
+<script>
+(function tickClock(){
+  function t(){const d=new Date();const el=document.getElementById('clock');if(el)el.textContent=[d.getHours(),d.getMinutes(),d.getSeconds()].map(n=>String(n).padStart(2,'0')).join(':');}
+  t(); setInterval(t,1000);
+})();
+</script>
+
+<script>
+// PINN extrusion live page logic
+(function() {
+  // ─── Architecture diagram ───────────────────────────────────────
+  function drawArch() {
+    const ins = ['T_z1','T_z2','T_z3','T_z4','T_z5','EXT_RPM','TAKEUP','ρ','geom'];
+    const outs = ['thick','width','weight','P_out','T_melt'];
+    const inputG = document.getElementById('archInputs');
+    const outputG = document.getElementById('archOutputs');
+    const hiddenG = document.getElementById('archHidden');
+    const pdeG = document.getElementById('archPde');
+    const xIn = 50, xOut = 350, hiddenXs = [115, 175, 235, 295];
+    const yStep = 22, yStart = 40;
+
+    // Inputs
+    let html = '';
+    ins.forEach((nm, i) => {
+      const y = yStart + i * yStep;
+      html += `<circle cx="${xIn}" cy="${y}" r="6" fill="#7cf" stroke="#001a2a" stroke-width="1"/>`;
+      html += `<text x="${xIn - 10}" y="${y + 3}" text-anchor="end" font-family="var(--ff-data)" font-size="9" fill="#94a3b8">${nm}</text>`;
+    });
+    inputG.innerHTML = html;
+
+    // Outputs
+    html = '';
+    outs.forEach((nm, i) => {
+      const y = yStart + 30 + i * yStep;
+      html += `<circle cx="${xOut}" cy="${y}" r="6" fill="#a78bfa" stroke="#001a2a" stroke-width="1"/>`;
+      html += `<text x="${xOut + 10}" y="${y + 3}" text-anchor="start" font-family="var(--ff-data)" font-size="9" fill="#94a3b8">${nm}</text>`;
+    });
+    outputG.innerHTML = html;
+
+    // Hidden layers (4 layers × 8 nodes shown for visual)
+    html = '';
+    const hiddenN = 8;
+    hiddenXs.forEach((x, layerIdx) => {
+      for (let j = 0; j < hiddenN; j += 1) {
+        const y = yStart + j * 22 + 10;
+        html += `<circle cx="${x}" cy="${y}" r="3.5" fill="url(#hidGrad)" stroke="#001" stroke-width="0.5" opacity=".75"/>`;
+      }
+      html += `<text x="${x}" y="252" text-anchor="middle" font-family="var(--ff-data)" font-size="9" fill="#94a3b8">L${layerIdx + 1} · 64</text>`;
+    });
+    // Connections — sparse fan-out for visual clarity
+    for (let i = 0; i < ins.length; i += 2) {
+      for (let j = 0; j < hiddenN; j += 2) {
+        const y1 = yStart + i * yStep;
+        const y2 = yStart + j * 22 + 10;
+        html += `<line x1="${xIn + 6}" y1="${y1}" x2="${hiddenXs[0] - 3}" y2="${y2}" stroke="#7dd3fc" stroke-width="0.3" opacity=".4"/>`;
+      }
+    }
+    for (let li = 0; li < hiddenXs.length - 1; li += 1) {
+      for (let i = 0; i < hiddenN; i += 2) {
+        for (let j = 0; j < hiddenN; j += 2) {
+          const y1 = yStart + i * 22 + 10;
+          const y2 = yStart + j * 22 + 10;
+          html += `<line x1="${hiddenXs[li] + 3}" y1="${y1}" x2="${hiddenXs[li + 1] - 3}" y2="${y2}" stroke="#a78bfa" stroke-width="0.3" opacity=".25"/>`;
+        }
+      }
+    }
+    for (let j = 0; j < hiddenN; j += 2) {
+      for (let i = 0; i < outs.length; i += 1) {
+        const y1 = yStart + j * 22 + 10;
+        const y2 = yStart + 30 + i * yStep;
+        html += `<line x1="${hiddenXs[3] + 3}" y1="${y1}" x2="${xOut - 6}" y2="${y2}" stroke="#a78bfa" stroke-width="0.3" opacity=".4"/>`;
+      }
+    }
+    hiddenG.innerHTML = html;
+
+    // PDE overlay floating boxes (top of network, distinguishing PINN from vanilla NN)
+    pdeG.innerHTML = `
+      <rect x="100" y="2" width="200" height="14" fill="rgba(255,184,77,.12)" stroke="#fb8" stroke-width=".5"/>
+      <text x="200" y="12" text-anchor="middle" font-family="var(--ff-data)" font-size="9" fill="#fb8">PHYSICS REGULARIZATION (PDE residuals)</text>
+      <text x="200" y="270" text-anchor="middle" font-family="var(--ff-data)" font-size="8.5" fill="#5a8" opacity=".75">L = λ_data·L_data + λ_cont·L_cont + λ_mom·L_mom + λ_eng·L_eng</text>
+    `;
+  }
+  drawArch();
+
+  // ─── Live data poll & sparkline rendering ───────────────────────
+  const HIST = { data: [], continuity: [], momentum: [], energy: [], total: [] };
+  const HIST_MAX = 60;
+
+  function pushHist(k, v) {
+    HIST[k].push(v);
+    if (HIST[k].length > HIST_MAX) HIST[k].shift();
+  }
+
+  function renderSparkOn(svg, vals, color) {
+    if (!svg || vals.length < 2) return;
+    const w = 200, h = 40;
+    let mn = Math.min(...vals), mx = Math.max(...vals);
+    const span = mx - mn || 1;
+    mn -= span * 0.1; mx += span * 0.1;
+    const rg = mx - mn || 1;
+    const stepX = w / (HIST_MAX - 1);
+    const startX = w - stepX * (vals.length - 1);
+    const pts = vals.map((v, i) => `${(startX + stepX * i).toFixed(1)},${(h - ((v - mn) / rg) * h).toFixed(1)}`).join(' ');
+    const lastY = h - ((vals[vals.length - 1] - mn) / rg) * h;
+    svg.innerHTML = `<polyline points="${pts}" fill="none" stroke="${color}" stroke-width="1.4" stroke-linejoin="round"/><circle cx="${w}" cy="${lastY.toFixed(1)}" r="2" fill="${color}"/>`;
+  }
+
+  const LOSS_COLORS = { data: '#7dd3fc', continuity: '#10b981', momentum: '#fb8', energy: '#a78bfa' };
+
+  function fmt(v, digits = 4) {
+    if (typeof v !== 'number' || !isFinite(v)) return '—';
+    if (Math.abs(v) >= 100) return v.toFixed(1);
+    if (Math.abs(v) >= 1) return v.toFixed(2);
+    return v.toFixed(digits);
+  }
+
+  function lossClass(k, v) {
+    // 各项的"健康"阈值
+    const goodTh = { data: 0.02, continuity: 0.05, momentum: 0.10, energy: 0.03 };
+    const warnTh = { data: 0.05, continuity: 0.15, momentum: 0.25, energy: 0.08 };
+    if (v < goodTh[k]) return 'good';
+    if (v < warnTh[k]) return 'warn';
+    return 'crit';
+  }
+
+  async function refresh() {
+    try {
+      const r = await window.PRINX.api.get('/api/pinn/state');
+      // losses
+      ['data','continuity','momentum','energy','total'].forEach(k => {
+        pushHist(k, r.losses[k]);
+      });
+      ['data','continuity','momentum','energy'].forEach(k => {
+        const card = document.querySelector(`.loss-card[data-loss="${k}"]`);
+        if (!card) return;
+        const v = r.losses[k];
+        const valEl = card.querySelector('[data-val]');
+        valEl.textContent = fmt(v);
+        valEl.className = 'val ' + lossClass(k, v);
+        card.querySelector('[data-lam]').textContent = `λ = ${r.lambdas[k].toFixed(3)}`;
+        renderSparkOn(card.querySelector('[data-spark]'), HIST[k], LOSS_COLORS[k]);
+      });
+      // total
+      document.querySelector('[data-loss-total]').textContent = fmt(r.losses.total);
+      document.getElementById('loss-total').textContent = `L = ${fmt(r.losses.total)}`;
+      renderSparkOn(document.querySelector('[data-spark-total]'), HIST.total, '#a78bfa');
+
+      // λ bars
+      ['data','continuity','momentum','energy'].forEach(k => {
+        const pct = (r.lambdas[k] * 100).toFixed(1);
+        document.querySelector(`[data-lambar="${k}"]`).style.width = pct + '%';
+        document.querySelector(`[data-lamval="${k}"]`).textContent = pct + '%';
+      });
+
+      // Epoch + meta
+      document.getElementById('pinn-epoch').textContent = r.epoch.toLocaleString();
+      document.getElementById('pinn-source').textContent = r.source || 'pinn-runtime';
+      document.getElementById('pinn-conf').textContent = (r.confidence * 100).toFixed(1) + '%';
+      document.getElementById('pinn-mu').textContent = r.mu_rel.toFixed(3);
+      document.getElementById('pinn-flux').textContent = `${r.in_flux.toFixed(2)} / ${r.out_flux.toFixed(2)}`;
+
+      // PCI
+      const pciPct = (r.pci * 100).toFixed(1);
+      document.getElementById('pci-fill').style.width = pciPct + '%';
+      document.getElementById('pci-lbl').textContent = `PCI = ${pciPct}%`;
+      document.getElementById('pci-state').textContent =
+        r.pci > 0.85 ? '良好 · 物理一致' : r.pci > 0.6 ? '正常' : '偏低 · 检查 SP/PV 偏差';
+
+      // Bottom bar
+      document.getElementById('bs-source').textContent = r.source || 'pinn';
+      document.getElementById('bs-epoch').textContent = r.epoch.toLocaleString();
+      document.getElementById('bs-loss').textContent = fmt(r.losses.total);
+      const bsP = document.getElementById('bs-pci');
+      bsP.textContent = pciPct + '%';
+      bsP.style.color = r.pci > 0.85 ? '#5a8' : r.pci > 0.6 ? '#fb8' : '#f88';
+    } catch (e) {
+      console.warn('[pinn] refresh failed', e);
+    }
+  }
+  refresh();
+  setInterval(refresh, 2000);
+
+  // ─── Inverse design (反推工艺) ───────────────────────────────
+  const RECOMMEND_SPS = [
+    { tag: 'EXT-T.SPEED.SP', label: '上挤出机 RPM', unit: 'RPM' },
+    { tag: 'EXT-M.SPEED.SP', label: '中挤出机 RPM', unit: 'RPM' },
+    { tag: 'EXT-B.SPEED.SP', label: '下挤出机 RPM', unit: 'RPM' },
+    { tag: 'TAKEUP.SPEED.SP', label: '收卷速度', unit: 'M/MIN' },
+  ];
+
+  // bind range -> label
+  ['thickness','width','weight'].forEach(k => {
+    const sl = document.getElementById('inv-' + k);
+    const lbl = document.getElementById('inv-' + k + '-v');
+    sl.addEventListener('input', () => { lbl.textContent = parseFloat(sl.value).toFixed(k === 'weight' ? 3 : (k === 'thickness' ? 2 : 0)); });
+  });
+
+  document.getElementById('inv-load-current').addEventListener('click', async () => {
+    try {
+      const samples = await window.PRINX.api.get('/api/quality/samples?limit=1');
+      if (samples && samples.length) {
+        const s = samples[0];
+        if (s.thickness_mm) {
+          document.getElementById('inv-thickness').value = s.thickness_mm;
+          document.getElementById('inv-thickness-v').textContent = s.thickness_mm.toFixed(2);
+        }
+        if (s.width_mm) {
+          document.getElementById('inv-width').value = s.width_mm;
+          document.getElementById('inv-width-v').textContent = s.width_mm.toFixed(0);
+        }
+        if (s.weight_kgm) {
+          document.getElementById('inv-weight').value = s.weight_kgm;
+          document.getElementById('inv-weight-v').textContent = s.weight_kgm.toFixed(3);
+        }
+      }
+    } catch (e) { console.warn(e); }
+  });
+
+  document.getElementById('inv-solve').addEventListener('click', async () => {
+    const tT = parseFloat(document.getElementById('inv-thickness').value);
+    const tW = parseFloat(document.getElementById('inv-width').value);
+    const tWt = parseFloat(document.getElementById('inv-weight').value);
+
+    document.getElementById('inv-status').textContent = '⌬ 求解中 · Adam 优化器迭代中...';
+    document.getElementById('inv-rows').innerHTML = '';
+
+    // Get current SP values
+    const signals = window.PRINX.getAllSignals();
+    const recipe = await window.PRINX.api.get('/api/recipes/in-use').catch(() => ({ parameters: {} }));
+    const currentSp = {};
+    RECOMMEND_SPS.forEach(s => {
+      currentSp[s.tag] = recipe.parameters?.[s.tag] ?? signals[s.tag.replace('.SP', '')]?.value ?? 5;
+    });
+
+    // Simulated PINN inverse — compute recommended SPs from target
+    // 简化模型：thickness 主要受螺杆速度影响（线性正相关），宽度受收卷速度影响（反相关），克重 = thickness × width × density
+    // 真实 PINN 用 Adam 反传，这里给出一个有物理依据的解析解 + 80 iter 模拟收敛
+    const baseT = 3.4;       // baseline thickness
+    const baseW = 165;       // baseline width
+    const baseRpmAvg = 5.1;
+    const baseTakeup = 5.0;
+    const recommend = {};
+    // Thickness 调速：thickness 需要高 → RPM 需要高
+    const rpmAdjust = (tT - baseT) / 0.05;  // 每 0.05mm 厚 = 1 RPM
+    recommend['EXT-T.SPEED.SP'] = Math.max(2, Math.min(8, baseRpmAvg + rpmAdjust));
+    recommend['EXT-M.SPEED.SP'] = Math.max(2, Math.min(8, baseRpmAvg + rpmAdjust * 0.95));
+    recommend['EXT-B.SPEED.SP'] = Math.max(2, Math.min(8, baseRpmAvg * 0.82 + rpmAdjust * 0.85));
+    // Width 调收卷：宽要小 → 收卷快（拉伸）
+    recommend['TAKEUP.SPEED.SP'] = Math.max(2, Math.min(10, baseTakeup + (baseW - tW) / 5));
+
+    // simulated convergence loop (delay for visual effect)
+    let iter = 0;
+    const totalIter = 80;
+    const interval = setInterval(() => {
+      iter += 4;
+      const residual = Math.exp(-iter / 25) * 0.8 + 0.001;
+      document.getElementById('inv-iter').textContent = iter.toString();
+      document.getElementById('inv-residual').textContent = residual.toFixed(5);
+      if (iter >= totalIter) {
+        clearInterval(interval);
+        document.getElementById('inv-status').textContent = `✓ 收敛 · 推荐 SP 组合 (residual = ${residual.toFixed(5)})`;
+        document.getElementById('inv-pci').textContent = (0.88 + Math.random() * 0.07).toFixed(3);
+        // render rows
+        let rowHtml = '';
+        for (const sp of RECOMMEND_SPS) {
+          const now = currentSp[sp.tag];
+          const rec = recommend[sp.tag];
+          const dPct = ((rec - now) / now) * 100;
+          const dCls = Math.abs(dPct) < 0.5 ? 'zero' : dPct > 0 ? 'up' : 'down';
+          const arrow = Math.abs(dPct) < 0.5 ? '─' : dPct > 0 ? '↑' : '↓';
+          rowHtml += `
+            <div class="inverse-row">
+              <span><b>${sp.tag}</b><br/><span style="color:var(--fg-tertiary);font-size:11px">${sp.label}</span></span>
+              <span class="now" style="text-align:right">${now.toFixed(2)}</span>
+              <span class="rec" style="text-align:right">${rec.toFixed(2)}</span>
+              <span class="delta ${dCls}">${arrow} ${Math.abs(dPct).toFixed(1)}%</span>
+            </div>`;
+        }
+        document.getElementById('inv-rows').innerHTML = rowHtml;
+      }
+    }, 60);
+  });
+})();
+</script>
+
+</body>
+</html>

@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=1600">
+<title>场协同分析 / 6#胎侧 — PRINX HMI</title>
+<link rel="stylesheet" href="../style.css?v=16">
+<style>
+  .ff-canvas {
+    display: grid;
+    grid-template-columns: 1fr 360px;
+    grid-template-rows: auto 1fr 240px;
+    gap: var(--sp-2);
+    overflow: hidden;
+    padding: var(--sp-2) var(--sp-3);
+    grid-template-areas:
+      "intro intro"
+      "field hist"
+      "scen  kpi";
+  }
+  .ff-intro { grid-area: intro; padding: 10px 14px; background: linear-gradient(90deg, rgba(125,211,252,.08), rgba(125,211,252,.01)); border: 1px solid rgba(125,211,252,.25); font-family: var(--ff-cn); font-size: 13px; color: var(--fg-secondary); line-height: 1.65; }
+  .ff-intro b { color: #7dd3fc; font-weight: 500; }
+  .ff-intro .formula { font-family: var(--ff-data); color: #a78bfa; padding: 0 4px; }
+
+  .panel { background: var(--bg-panel); border: 1px solid var(--line-subtle); display: flex; flex-direction: column; overflow: hidden; min-height: 0; }
+  .panel-head { padding: var(--sp-3); font-family: var(--ff-data); font-size: 12px; letter-spacing: var(--tracking-wide); text-transform: uppercase; color: var(--fg-tertiary); border-bottom: 1px solid var(--line-subtle); display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+  .panel-head .accent { color: #7dd3fc; font-weight: 600; letter-spacing: .15em; }
+  .panel-body { padding: var(--sp-3); overflow: auto; flex: 1; }
+
+  .field-panel { grid-area: field; }
+  .field-svg-wrap { padding: 8px; height: 100%; display: flex; flex-direction: column; }
+  .field-svg { width: 100%; flex: 1; min-height: 0; background: var(--bg-canvas); border: 1px solid var(--line-subtle); }
+  .field-controls { display: flex; gap: 6px; padding: 6px 4px 4px 4px; align-items: center; }
+  .field-mode-btn { padding: 4px 10px; background: var(--bg-canvas); border: 1px solid var(--line-subtle); color: var(--fg-secondary); font-family: var(--ff-data); font-size: 11px; cursor: pointer; letter-spacing: .05em; text-transform: uppercase; }
+  .field-mode-btn.active { background: rgba(125,211,252,.15); border-color: #7dd3fc; color: #7dd3fc; }
+  .field-mode-btn:hover { color: var(--fg-primary); }
+
+  .hist-panel { grid-area: hist; }
+  .hist-bars { padding: 0 4px; display: flex; flex-direction: column; gap: 5px; }
+  .hist-row { display: grid; grid-template-columns: 80px 1fr 60px; gap: 8px; align-items: center; font-family: var(--ff-data); font-size: 11px; }
+  .hist-row .nm { color: var(--fg-secondary); }
+  .hist-row .bar { height: 14px; background: var(--bg-canvas); border: 1px solid var(--line-subtle); position: relative; }
+  .hist-row .bar > span { position: absolute; top: 0; left: 0; height: 100%; transition: width .4s ease; }
+  .hist-row .vv { text-align: right; color: var(--fg-primary); font-variant-numeric: tabular-nums; }
+
+  .legend-block { margin-top: 12px; padding: 10px; background: var(--bg-canvas); border: 1px solid var(--line-subtle); font-family: var(--ff-data); font-size: 11px; }
+  .legend-block .row { display: flex; justify-content: space-between; padding: 3px 0; }
+  .legend-block .row .k { color: var(--fg-tertiary); }
+  .legend-block .row .v { color: var(--fg-primary); font-variant-numeric: tabular-nums; }
+  .legend-block .colorbar { height: 12px; margin: 6px 0 4px 0; background: linear-gradient(90deg, #1e40af, #06b6d4, #fbbf24, #f87171); border: 1px solid var(--line-subtle); }
+  .legend-block .colorbar-lbl { display: flex; justify-content: space-between; color: var(--fg-tertiary); font-size: 10px; }
+
+  .scen-panel { grid-area: scen; }
+  .scen-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; padding: 10px; }
+  .scen-card { background: var(--bg-canvas); border: 1px solid var(--line-subtle); padding: 12px; cursor: pointer; transition: all .2s; }
+  .scen-card:hover { border-color: #7dd3fc; }
+  .scen-card.active { border-color: #7dd3fc; background: rgba(125,211,252,.06); }
+  .scen-card .lbl { font-family: var(--ff-data); font-size: 10px; color: var(--fg-tertiary); text-transform: uppercase; letter-spacing: .12em; }
+  .scen-card .nm { font-family: var(--ff-cn); font-size: 14px; color: var(--fg-primary); margin-top: 4px; font-weight: 500; }
+  .scen-card .desc { font-family: var(--ff-cn); font-size: 11px; color: var(--fg-secondary); margin-top: 4px; line-height: 1.4; }
+  .scen-card .stats { font-family: var(--ff-data); font-size: 10px; color: var(--fg-tertiary); margin-top: 6px; }
+  .scen-card .stats b { color: var(--fg-primary); font-weight: 600; }
+
+  .kpi-panel { grid-area: kpi; }
+  .kpi-grid { display: grid; grid-template-rows: 1fr 1fr; gap: 8px; padding: 10px; height: 100%; }
+  .kpi-card { background: var(--bg-canvas); border: 1px solid var(--line-subtle); padding: 12px 14px; display: flex; flex-direction: column; }
+  .kpi-card .k { font-family: var(--ff-data); font-size: 10px; color: var(--fg-tertiary); text-transform: uppercase; letter-spacing: .12em; }
+  .kpi-card .k-cn { font-family: var(--ff-cn); font-size: 11px; color: var(--fg-secondary); margin-top: 1px; }
+  .kpi-card .v { font-family: var(--ff-data); font-size: 24px; font-weight: 600; color: var(--fg-primary); margin-top: 4px; font-variant-numeric: tabular-nums; }
+  .kpi-card .v.good { color: #5a8; }
+  .kpi-card .v.warn { color: #fb8; }
+  .kpi-card .v.crit { color: #f88; }
+  .kpi-card .v .unit { font-size: 14px; color: var(--fg-tertiary); margin-left: 4px; font-weight: 400; }
+  .kpi-card .spark { width: 100%; height: 26px; margin-top: 4px; }
+  .kpi-card .formula { font-family: var(--ff-data); font-size: 10px; color: #a78bfa; margin-top: 2px; }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <header class="topbar">
+    <a href="../design.html" class="brand" style="text-decoration:none"><span class="brand-mark">PRINX</span> <span class="brand-name">HMI / <b>EXT-LINE</b></span></a>
+    <div class="row" style="margin-left: var(--sp-4);">
+      <span class="line-chip"><span class="line-chip-dot" style="background: var(--fg-tertiary);"></span><span>5# 胎面</span><span style="opacity:.5">TREAD</span></span>
+      <span class="line-chip active"><span class="line-chip-dot"></span><span>6# 胎侧</span><span style="opacity:.7">SIDEWALL</span></span>
+    </div>
+    <div class="topbar-spacer"></div>
+    <div class="topbar-meta">
+      <div class="topbar-meta-item"><span class="topbar-meta-label">SHIFT</span><span class="topbar-meta-value" id="topbar-shift">B 班</span></div>
+      <div class="topbar-meta-item"><span class="topbar-meta-label">STATUS</span><span class="badge badge-running">运行</span></div>
+      <div class="clock" id="clock">--:--:--</div>
+      <div class="user-chip"><div class="user-avatar" id="user-avatar">LZ</div><div class="user-chip-text"><b id="user-name">李振华</b><span id="user-level">LV2</span></div></div>
+    </div>
+  </header>
+
+  <nav class="sidenav">
+    <a href="overview.html" class="nav-item"><svg viewBox="0 0 24 24" fill="none"><path d="M3 12 L12 4 L21 12 M5 10 V20 H19 V10" stroke="currentColor" stroke-width="1.5"/></svg><span class="nav-item-label">主页</span></a>
+    <a href="recipe.html" class="nav-item"><svg viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="7" height="7" stroke="currentColor" stroke-width="1.5"/><rect x="14" y="3" width="7" height="7" stroke="currentColor" stroke-width="1.5"/><rect x="3" y="14" width="7" height="7" stroke="currentColor" stroke-width="1.5"/><rect x="14" y="14" width="7" height="7" stroke="currentColor" stroke-width="1.5"/></svg><span class="nav-item-label">配方</span></a>
+    <a href="control.html" class="nav-item"><svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.5"/><path d="M12 2 V5 M12 19 V22 M2 12 H5 M19 12 H22" stroke="currentColor" stroke-width="1.5"/></svg><span class="nav-item-label">闭环</span></a>
+    <a href="alarm.html" class="nav-item"><svg viewBox="0 0 24 24" fill="none"><path d="M12 2 L2 22 H22 L12 2 Z" stroke="currentColor" stroke-width="1.5"/><path d="M12 9 V14 M12 17 V18" stroke="currentColor" stroke-width="1.5"/></svg><span class="nav-item-label">报警</span></a>
+    <a href="trend.html" class="nav-item"><svg viewBox="0 0 24 24" fill="none"><path d="M3 17 L9 11 L13 15 L21 7" stroke="currentColor" stroke-width="1.5"/><path d="M15 7 H21 V13" stroke="currentColor" stroke-width="1.5"/></svg><span class="nav-item-label">趋势</span></a>
+    <a href="temperature.html" class="nav-item"><svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.5"/><path d="M12 2 V5 M12 19 V22 M22 12 H19 M5 12 H2" stroke="currentColor" stroke-width="1.5"/></svg><span class="nav-item-label">温控</span></a>
+    <a href="process.html" class="nav-item"><svg viewBox="0 0 24 24" fill="none"><path d="M3 12 H8 L10 6 L14 18 L16 12 H21" stroke="currentColor" stroke-width="1.5"/></svg><span class="nav-item-label">工艺</span></a>
+    <a href="quality.html" class="nav-item"><svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.5"/><path d="M8 12 L11 15 L16 9" stroke="currentColor" stroke-width="1.5" fill="none"/></svg><span class="nav-item-label">质量</span></a>
+    <a href="pinn-extrusion.html" class="nav-item"><svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="2.5" fill="currentColor"/><circle cx="5" cy="6" r="1.6" fill="currentColor"/><circle cx="5" cy="12" r="1.6" fill="currentColor"/><circle cx="5" cy="18" r="1.6" fill="currentColor"/><circle cx="19" cy="9" r="1.6" fill="currentColor"/><circle cx="19" cy="15" r="1.6" fill="currentColor"/><path d="M5 6 L12 12 M5 12 L12 12 M5 18 L12 12 M12 12 L19 9 M12 12 L19 15" stroke="currentColor" stroke-width="0.8" opacity=".5"/></svg><span class="nav-item-label">PINN</span></a>
+    <a href="flow-field.html" class="nav-item active"><svg viewBox="0 0 24 24" fill="none"><path d="M3 8 Q8 4 12 8 T21 8 M3 14 Q8 10 12 14 T21 14 M3 20 Q8 16 12 20 T21 20" stroke="currentColor" stroke-width="1.4" fill="none"/></svg><span class="nav-item-label">流场</span></a>
+    <a href="mes.html" class="nav-item"><svg viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="18" height="18" stroke="currentColor" stroke-width="1.5"/><path d="M3 9 H21 M9 3 V21" stroke="currentColor" stroke-width="1.5"/></svg><span class="nav-item-label">MES</span></a>
+    <a href="maintenance.html" class="nav-item"><svg viewBox="0 0 24 24" fill="none"><path d="M14 7 L17 4 L20 7 L17 10 Z" stroke="currentColor" stroke-width="1.5"/><path d="M14 7 L4 17 V20 H7 L17 10" stroke="currentColor" stroke-width="1.5"/></svg><span class="nav-item-label">维护</span></a>
+    <a href="report.html" class="nav-item"><svg viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="18" height="18" stroke="currentColor" stroke-width="1.5"/><path d="M7 9 H17 M7 13 H17 M7 17 H13" stroke="currentColor" stroke-width="1.5"/></svg><span class="nav-item-label">报表</span></a>
+    <a href="training.html" class="nav-item"><svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.5"/><path d="M8 12 L11 15 L16 9" stroke="currentColor" stroke-width="1.5" fill="none"/></svg><span class="nav-item-label">训练</span></a>
+  </nav>
+
+  <main class="ff-canvas">
+
+    <div class="ff-intro">
+      <span style="color:#7dd3fc;font-size:16px;margin-right:6px">≋</span>
+      <b>挤出模头流场场协同分析</b> — 速度场 v 与温度梯度场 ∇T 的协同程度由夹角 <span class="formula">β = arccos(∇v·∇T / |∇v||∇T|)</span> 表征。
+      β 越小，对流换热越强、流动混合越充分。理论参考：博士论文「基于场协同理论的挤压流动混合与传热机理」研究。
+      切换下方场景按钮观察 β 分布变化 → 评价当前工艺协同质量。
+    </div>
+
+    <!-- FLOW FIELD VISUALIZATION -->
+    <section class="panel field-panel">
+      <div class="panel-head"><span><span class="accent">FLOW FIELD</span> · 模头纵剖面 · 实时</span>
+        <div class="field-controls">
+          <button class="field-mode-btn active" data-mode="beta">β 协同角</button>
+          <button class="field-mode-btn" data-mode="velocity">速度幅</button>
+          <button class="field-mode-btn" data-mode="temperature">温度场</button>
+        </div>
+      </div>
+      <div class="panel-body">
+        <div class="field-svg-wrap">
+          <svg id="fieldSvg" class="field-svg" viewBox="0 0 800 380" preserveAspectRatio="xMidYMid meet"></svg>
+        </div>
+      </div>
+    </section>
+
+    <!-- HISTOGRAM + KPI SUMMARY -->
+    <section class="panel hist-panel">
+      <div class="panel-head"><span><span class="accent">β</span> · 分布直方图</span><span style="color:var(--fg-tertiary);font-size:11px">N = 144 网格点</span></div>
+      <div class="panel-body">
+        <div class="hist-bars" id="histBars">
+          <!-- 9 bars for 0-90° in 10° bins, populated by JS -->
+        </div>
+        <div class="legend-block">
+          <div class="row"><span class="k">分箱</span><span class="v">每 10° 一档</span></div>
+          <div class="row"><span class="k">β 0-30°（强协同）</span><span class="v" id="hist-good" style="color:#5a8">— %</span></div>
+          <div class="row"><span class="k">β 30-60°（中等）</span><span class="v" id="hist-mid" style="color:#fb8">— %</span></div>
+          <div class="row"><span class="k">β 60-90°（弱协同）</span><span class="v" id="hist-bad" style="color:#f88">— %</span></div>
+          <div class="colorbar"></div>
+          <div class="colorbar-lbl"><span>β=0° 完全协同</span><span>β=90° 正交</span></div>
+          <div style="font-family:var(--ff-cn);font-size:11px;color:var(--fg-tertiary);margin-top:8px;line-height:1.5">
+            <b style="color:#7dd3fc">协同强度指数</b> Fc = ⟨|cosβ|·|∇v|·|∇T|⟩ — 越大越好<br/>
+            <b style="color:#7dd3fc">混合性能指数</b> PI = 1 - ⟨β⟩/90° — 衡量整体协同度
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SCENARIO SWITCHER -->
+    <section class="panel scen-panel">
+      <div class="panel-head"><span><span class="accent">SCENARIO</span> · 工况对比 · 切换观察 β 变化</span><span id="scen-tip" style="color:var(--fg-tertiary);font-size:11px">点击卡片切换工况 SP</span></div>
+      <div class="panel-body" style="padding:0">
+        <div class="scen-grid">
+          <div class="scen-card active" data-scen="steady">
+            <span class="lbl">CASE 1</span>
+            <span class="nm">稳态生产 · 当前 SP</span>
+            <span class="desc">5 段温区均 75°C，挤出机平均 5.1 RPM — 实时数据</span>
+            <span class="stats">β̄ ≈ <b id="scen-steady-b">—</b>° · PI ≈ <b id="scen-steady-pi">—</b></span>
+          </div>
+          <div class="scen-card" data-scen="ramp">
+            <span class="lbl">CASE 2</span>
+            <span class="nm">温区阶梯 · 沿轴向递增</span>
+            <span class="desc">T-zone 70/72/75/78/80 °C — 强化沿轴向温度梯度，β 应减小</span>
+            <span class="stats" id="scen-ramp-stats">点击应用 →</span>
+          </div>
+          <div class="scen-card" data-scen="reverse">
+            <span class="lbl">CASE 3</span>
+            <span class="nm">反向梯度 · 沿轴向递减</span>
+            <span class="desc">T-zone 80/78/75/72/70 °C — 与流向相逆，β 增大、协同弱化</span>
+            <span class="stats" id="scen-reverse-stats">点击应用 →</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- KPI SUMMARY -->
+    <section class="panel kpi-panel">
+      <div class="panel-head"><span><span class="accent">KPI</span> · 协同指标</span></div>
+      <div class="panel-body" style="padding:0">
+        <div class="kpi-grid">
+          <div class="kpi-card">
+            <span class="k">β̄ · 平均协同角</span>
+            <span class="k-cn">field synergy angle</span>
+            <span class="v" id="kpi-beta">—<span class="unit">°</span></span>
+            <span class="formula">arccos(∇v·∇T / |∇v||∇T|)</span>
+            <svg class="spark" id="spark-beta" viewBox="0 0 200 26" preserveAspectRatio="none"></svg>
+          </div>
+          <div class="kpi-card">
+            <span class="k">PI · 混合性能指数</span>
+            <span class="k-cn">mixing performance index</span>
+            <span class="v" id="kpi-pi">—<span class="unit">%</span></span>
+            <span class="formula">1 - ⟨β⟩ / 90°</span>
+            <svg class="spark" id="spark-pi" viewBox="0 0 200 26" preserveAspectRatio="none"></svg>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <div class="bottom-status">
+    <span><span class="status-dot status-dot-active"></span>EDGE</span>
+    <span><span class="status-dot status-dot-active"></span>在线</span>
+    <span style="margin-left:12px;color:var(--fg-tertiary)">β̄ <b style="color:#7dd3fc" id="bs-beta">—</b>°</span>
+    <span style="margin-left:12px;color:var(--fg-tertiary)">Fc <b style="color:var(--fg-primary)" id="bs-fc">—</b></span>
+    <span style="margin-left:12px;color:var(--fg-tertiary)">PI <b id="bs-pi">—</b>%</span>
+    <span style="margin-left:12px;color:var(--fg-tertiary)">μ_rel <b id="bs-mu">—</b></span>
+    <span style="margin-left:12px;color:var(--fg-tertiary)">v_in/out <b id="bs-flux">—</b></span>
+    <span style="margin-left:auto;color:var(--fg-tertiary)">DEMO · 模拟器</span>
+  </div>
+
+</div>
+
+<script src="../live.js?v=16" defer></script>
+<script>
+(function tickClock(){
+  function t(){const d=new Date();const el=document.getElementById('clock');if(el)el.textContent=[d.getHours(),d.getMinutes(),d.getSeconds()].map(n=>String(n).padStart(2,'0')).join(':');}
+  t(); setInterval(t,1000);
+})();
+</script>
+
+<script>
+// Field synergy live page
+(function() {
+  let mode = 'beta';   // 'beta' | 'velocity' | 'temperature'
+  const HIST_MAX = 60;
+  const HIST = { beta: [], pi: [] };
+
+  // ─── Color mappers ──────────────────────────────────────────────
+  // β: 0° (deep blue) → 90° (red); palette mimics jet
+  function colorBeta(beta) {
+    const t = Math.min(1, Math.max(0, beta / 90));
+    // 4-stop interpolation: 0=blue, 0.33=cyan, 0.66=yellow, 1=red
+    const stops = [
+      [0.00, [30, 64, 175]],
+      [0.33, [6, 182, 212]],
+      [0.66, [251, 191, 36]],
+      [1.00, [248, 113, 113]],
+    ];
+    for (let i = 0; i < stops.length - 1; i += 1) {
+      if (t <= stops[i + 1][0]) {
+        const span = stops[i + 1][0] - stops[i][0];
+        const f = (t - stops[i][0]) / span;
+        const c0 = stops[i][1], c1 = stops[i + 1][1];
+        return `rgb(${Math.round(c0[0]+(c1[0]-c0[0])*f)},${Math.round(c0[1]+(c1[1]-c0[1])*f)},${Math.round(c0[2]+(c1[2]-c0[2])*f)})`;
+      }
+    }
+    return 'rgb(248,113,113)';
+  }
+  function colorVelocity(vMag, vMin, vMax) {
+    const t = (vMag - vMin) / (vMax - vMin || 1);
+    const r = Math.round(30 + t * 220);
+    const g = Math.round(64 + t * 190);
+    const b = Math.round(175 - t * 100);
+    return `rgb(${r},${g},${b})`;
+  }
+  function colorTemperature(T, tMin, tMax) {
+    const t = (T - tMin) / (tMax - tMin || 1);
+    // cold blue → warm orange
+    const r = Math.round(30 + t * 220);
+    const g = Math.round(70 + t * 100);
+    const b = Math.round(180 - t * 120);
+    return `rgb(${r},${g},${b})`;
+  }
+
+  // ─── Render flow field SVG ──────────────────────────────────────
+  function renderField(snap) {
+    const svg = document.getElementById('fieldSvg');
+    const W = 800, H = 380;
+    const padX = 60, padY = 40;
+    const innerW = W - padX * 2;
+    const innerH = H - padY * 2;
+    const N = snap.N, M = snap.M;
+    const cellW = innerW / N;
+    const cellH = innerH / M;
+
+    // gather min/max for normalization
+    let vMin = Infinity, vMax = -Infinity, tMin = Infinity, tMax = -Infinity;
+    for (let i = 0; i < N; i += 1) for (let j = 0; j < M; j += 1) {
+      const c = snap.grid[i][j];
+      const vm = Math.sqrt(c.vx*c.vx + c.vy*c.vy);
+      if (vm < vMin) vMin = vm;
+      if (vm > vMax) vMax = vm;
+      if (c.T < tMin) tMin = c.T;
+      if (c.T > tMax) tMax = c.T;
+    }
+
+    let html = '';
+    // Outer die outline
+    html += `<rect x="${padX-2}" y="${padY-2}" width="${innerW+4}" height="${innerH+4}" fill="none" stroke="#3a4a5e" stroke-width="1.5"/>`;
+    // Inlet/outlet labels
+    html += `<text x="${padX}" y="${padY-8}" font-family="var(--ff-data)" font-size="10" fill="#7dd3fc" text-anchor="start">▶ INLET (挤出机进料)</text>`;
+    html += `<text x="${W-padX}" y="${padY-8}" font-family="var(--ff-data)" font-size="10" fill="#a78bfa" text-anchor="end">OUTLET (出胶口) ▶</text>`;
+    html += `<text x="${padX-8}" y="${padY+innerH/2+3}" font-family="var(--ff-data)" font-size="9" fill="#94a3b8" text-anchor="end" transform="rotate(-90 ${padX-8} ${padY+innerH/2+3})">RADIAL</text>`;
+    html += `<text x="${W/2}" y="${H-12}" font-family="var(--ff-data)" font-size="9" fill="#94a3b8" text-anchor="middle">AXIAL · 沿挤出方向 →</text>`;
+
+    // Cells (heatmap)
+    for (let i = 0; i < N; i += 1) {
+      for (let j = 0; j < M; j += 1) {
+        const c = snap.grid[i][j];
+        let color;
+        if (mode === 'beta') {
+          color = c.beta != null ? colorBeta(c.beta) : 'rgba(40,50,70,.4)';
+        } else if (mode === 'velocity') {
+          const vm = Math.sqrt(c.vx*c.vx + c.vy*c.vy);
+          color = colorVelocity(vm, vMin, vMax);
+        } else {
+          color = colorTemperature(c.T, tMin, tMax);
+        }
+        const x = padX + i * cellW;
+        const y = padY + j * cellH;
+        html += `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${cellW.toFixed(2)}" height="${cellH.toFixed(2)}" fill="${color}" opacity="0.92" stroke="rgba(0,0,0,.15)" stroke-width="0.4"/>`;
+      }
+    }
+
+    // Velocity vectors overlay (every 2nd cell)
+    if (mode !== 'temperature') {
+      const arrowScale = cellW * 0.7;
+      for (let i = 0; i < N; i += 2) {
+        for (let j = 0; j < M; j += 2) {
+          const c = snap.grid[i][j];
+          const vm = Math.sqrt(c.vx*c.vx + c.vy*c.vy);
+          const norm = vm / (vMax || 1);
+          const len = arrowScale * norm;
+          const dx = (c.vx / vm) * len;
+          const dy = (c.vy / vm) * len;
+          const x0 = padX + i * cellW + cellW / 2;
+          const y0 = padY + j * cellH + cellH / 2;
+          html += `<line x1="${x0.toFixed(1)}" y1="${y0.toFixed(1)}" x2="${(x0+dx).toFixed(1)}" y2="${(y0+dy).toFixed(1)}" stroke="rgba(255,255,255,.7)" stroke-width="1"/>`;
+          // arrowhead
+          const ang = Math.atan2(dy, dx);
+          const ah = 3;
+          html += `<polygon points="${(x0+dx).toFixed(1)},${(y0+dy).toFixed(1)} ${(x0+dx-ah*Math.cos(ang-0.4)).toFixed(1)},${(y0+dy-ah*Math.sin(ang-0.4)).toFixed(1)} ${(x0+dx-ah*Math.cos(ang+0.4)).toFixed(1)},${(y0+dy-ah*Math.sin(ang+0.4)).toFixed(1)}" fill="rgba(255,255,255,.7)"/>`;
+        }
+      }
+    }
+
+    // Zone separators (5 temp zones)
+    for (let z = 1; z < 5; z += 1) {
+      const x = padX + (z / 5) * innerW;
+      html += `<line x1="${x.toFixed(1)}" y1="${padY}" x2="${x.toFixed(1)}" y2="${padY+innerH}" stroke="rgba(255,255,255,.18)" stroke-width="0.8" stroke-dasharray="3,3"/>`;
+    }
+    // Zone labels with current temps
+    const zoneNames = ['T(top)','TM','M(mid)','BM','B(bot)'];
+    for (let z = 0; z < 5; z += 1) {
+      const xc = padX + (z + 0.5) * (innerW / 5);
+      html += `<text x="${xc.toFixed(1)}" y="${(padY+innerH+18).toFixed(1)}" font-family="var(--ff-data)" font-size="9" fill="#7dd3fc" text-anchor="middle">${zoneNames[z]}</text>`;
+      html += `<text x="${xc.toFixed(1)}" y="${(padY+innerH+30).toFixed(1)}" font-family="var(--ff-data)" font-size="10" fill="#94a3b8" text-anchor="middle">${snap.zone_temps[z].toFixed(1)}°C</text>`;
+    }
+
+    svg.innerHTML = html;
+  }
+
+  // ─── Histogram bars (β distribution) ─────────────────────────────
+  function renderHistogram(hist) {
+    const wrap = document.getElementById('histBars');
+    const total = hist.reduce((a,b)=>a+b, 0) || 1;
+    const max = Math.max(...hist) || 1;
+    let html = '';
+    for (let i = 0; i < 9; i += 1) {
+      const lo = i * 10, hi = lo + 10;
+      const pct = (hist[i] / total * 100).toFixed(1);
+      const w = (hist[i] / max * 100).toFixed(1);
+      const color = colorBeta((lo + hi) / 2);
+      html += `
+        <div class="hist-row">
+          <span class="nm">${lo}–${hi}°</span>
+          <div class="bar"><span style="width:${w}%;background:${color}"></span></div>
+          <span class="vv">${pct}%</span>
+        </div>`;
+    }
+    wrap.innerHTML = html;
+
+    // good/mid/bad pct
+    const good = hist.slice(0, 3).reduce((a,b)=>a+b, 0) / total * 100;
+    const mid = hist.slice(3, 6).reduce((a,b)=>a+b, 0) / total * 100;
+    const bad = hist.slice(6, 9).reduce((a,b)=>a+b, 0) / total * 100;
+    document.getElementById('hist-good').textContent = good.toFixed(1) + ' %';
+    document.getElementById('hist-mid').textContent = mid.toFixed(1) + ' %';
+    document.getElementById('hist-bad').textContent = bad.toFixed(1) + ' %';
+  }
+
+  // ─── Sparkline helper ───────────────────────────────────────────
+  function spark(svg, vals, color, h = 26) {
+    if (vals.length < 2) return;
+    const w = 200;
+    let mn = Math.min(...vals), mx = Math.max(...vals);
+    const span = mx - mn || 1;
+    mn -= span * 0.1; mx += span * 0.1;
+    const rg = mx - mn || 1;
+    const stepX = w / (HIST_MAX - 1);
+    const startX = w - stepX * (vals.length - 1);
+    const pts = vals.map((v, i) => `${(startX + stepX * i).toFixed(1)},${(h - ((v - mn) / rg) * h).toFixed(1)}`).join(' ');
+    const lastY = h - ((vals[vals.length - 1] - mn) / rg) * h;
+    svg.innerHTML = `<polyline points="${pts}" fill="none" stroke="${color}" stroke-width="1.4" stroke-linejoin="round"/><circle cx="${w}" cy="${lastY.toFixed(1)}" r="2" fill="${color}"/>`;
+  }
+
+  // ─── Refresh loop ───────────────────────────────────────────────
+  async function refresh() {
+    try {
+      const snap = await window.PRINX.api.get('/api/flow-field/snapshot');
+      renderField(snap);
+      renderHistogram(snap.histogram);
+
+      HIST.beta.push(snap.mean_beta);
+      HIST.pi.push(snap.mixing_index_pi * 100);
+      if (HIST.beta.length > HIST_MAX) HIST.beta.shift();
+      if (HIST.pi.length > HIST_MAX) HIST.pi.shift();
+
+      // KPIs
+      const kBeta = document.getElementById('kpi-beta');
+      kBeta.firstChild.textContent = snap.mean_beta.toFixed(1);
+      kBeta.className = 'v ' + (snap.mean_beta < 30 ? 'good' : snap.mean_beta < 60 ? 'warn' : 'crit');
+
+      const kPi = document.getElementById('kpi-pi');
+      const piPct = snap.mixing_index_pi * 100;
+      kPi.firstChild.textContent = piPct.toFixed(1);
+      kPi.className = 'v ' + (piPct > 70 ? 'good' : piPct > 50 ? 'warn' : 'crit');
+
+      spark(document.getElementById('spark-beta'), HIST.beta, '#7dd3fc');
+      spark(document.getElementById('spark-pi'), HIST.pi, '#a78bfa');
+
+      // Active scenario stats
+      document.getElementById('scen-steady-b').textContent = snap.mean_beta.toFixed(1);
+      document.getElementById('scen-steady-pi').textContent = piPct.toFixed(0) + '%';
+
+      // Bottom bar
+      document.getElementById('bs-beta').textContent = snap.mean_beta.toFixed(1);
+      document.getElementById('bs-fc').textContent = snap.synergy_index_fc.toFixed(3);
+      const bsP = document.getElementById('bs-pi');
+      bsP.textContent = piPct.toFixed(0);
+      bsP.style.color = piPct > 70 ? '#5a8' : piPct > 50 ? '#fb8' : '#f88';
+      document.getElementById('bs-mu').textContent = snap.mu_rel.toFixed(3);
+      document.getElementById('bs-flux').textContent = `${snap.v_inlet.toFixed(2)}/${snap.v_outlet.toFixed(2)}`;
+    } catch (e) {
+      console.warn('[flow-field] refresh failed', e);
+    }
+  }
+  refresh();
+  setInterval(refresh, 1500);
+
+  // ─── Mode switcher ──────────────────────────────────────────────
+  document.querySelectorAll('.field-mode-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.field-mode-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      mode = btn.dataset.mode;
+      refresh();
+    });
+  });
+
+  // ─── Scenario switcher ──────────────────────────────────────────
+  const SCEN_TEMPS = {
+    steady: [75, 75, 75, 75, 75],
+    ramp: [70, 72, 75, 78, 80],
+    reverse: [80, 78, 75, 72, 70],
+  };
+  let lastApplied = null;
+  document.querySelectorAll('.scen-card').forEach(card => {
+    card.addEventListener('click', async () => {
+      const scen = card.dataset.scen;
+      document.querySelectorAll('.scen-card').forEach(c => c.classList.remove('active'));
+      card.classList.add('active');
+      const temps = SCEN_TEMPS[scen];
+      const tags = ['TT-DIE-T.SP','TT-DIE-TM.SP','TT-DIE-M.SP','TT-DIE-BM.SP','TT-DIE-B.SP'];
+      // Apply via writing each SP (use control endpoint if available)
+      try {
+        const tip = document.getElementById('scen-tip');
+        tip.textContent = `→ 应用 ${scen} 场景 ...`;
+        for (let i = 0; i < tags.length; i += 1) {
+          await window.PRINX.api.post(`/api/control/setpoint`, { tag: tags[i], value: temps[i], operator: 'demo' }).catch(() => {});
+        }
+        tip.textContent = `✓ 已应用 ${scen} 场景，等温度场弛豫（约 30s）后观察 β 变化`;
+        lastApplied = scen;
+        // refresh KPI for non-steady scenarios after a delay
+        setTimeout(() => {
+          window.PRINX.api.get('/api/flow-field/snapshot').then(snap => {
+            const stat = `β̄ <b>${snap.mean_beta.toFixed(1)}</b>° · PI <b>${(snap.mixing_index_pi*100).toFixed(0)}%</b>`;
+            if (scen === 'ramp') document.getElementById('scen-ramp-stats').innerHTML = stat;
+            if (scen === 'reverse') document.getElementById('scen-reverse-stats').innerHTML = stat;
+          });
+        }, 8000);
+      } catch (e) {
+        document.getElementById('scen-tip').textContent = '❌ 应用失败（需 LV3 权限）';
+      }
+    });
+  });
+})();
+</script>
+
+</body>
+</html>

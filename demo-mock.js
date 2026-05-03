@@ -205,6 +205,151 @@
     return Math.max(0.15, Math.min(0.97, base + (Math.random() - 0.5) * 0.05));
   }
 
+  // ─── PINN model state — 4 loss components + adaptive λ weights ────────
+  // 物理嵌入：连续性 ∂ρ/∂t + ∇·(ρv) = 0、动量 ∇p = μ∇²v + ρg、能量 ∂T/∂t + v·∇T = α∇²T
+  // λ 权重按 NTK 主特征值反比自适应（demo 简化为 inverse-magnitude 归一化）
+  let pinnEpoch = 12480;     // 累计 fine-tune epoch
+  let pinnLastEpochAt = Date.now();
+  function computePinnLoss() {
+    // L_data: PV vs SP fitting residual on key process tags
+    const dataTags = [
+      ['EXT-T.SPEED', 'EXT-T.SPEED.SP', 5.1],
+      ['EXT-M.SPEED', 'EXT-M.SPEED.SP', 5.1],
+      ['EXT-B.SPEED', 'EXT-B.SPEED.SP', 4.2],
+      ['EXT-90.SPEED', 'EXT-90.SPEED.SP', 7.6],
+      ['TT-DIE-T.PV', 'TT-DIE-T.SP', 75],
+      ['TT-DIE-M.PV', 'TT-DIE-M.SP', 75],
+      ['TT-DIE-B.PV', 'TT-DIE-B.SP', 75],
+    ];
+    let lData = 0;
+    for (const [pv, sp, ref] of dataTags) {
+      const a = state[pv]?.value ?? ref;
+      const b = SETPOINTS[sp] ?? ref;
+      lData += ((a - b) / ref) ** 2;
+    }
+    lData = Math.sqrt(lData / dataTags.length);
+
+    // L_continuity: 进口流量 ≈ 出口卷取速度 × 截面积
+    // mass flux: ρ·A·v 应保持各段一致
+    const inFlux = ['T','M','B'].reduce((s,id) => s + (state[`EXT-${id}.SPEED`]?.value ?? 5) * 0.32, 0); // 截面 0.32cm²
+    const outFlux = (state['TAKEUP.SPEED']?.value ?? 5) * (state['WIDTH-REAR.PV']?.value ?? 165) / 100 * 0.34;  // mm·m/min
+    const lCont = Math.abs(inFlux - outFlux) / Math.max(inFlux, outFlux);
+
+    // L_momentum: 压力梯度 vs 速度 — Hagen-Poiseuille 形式 ΔP ∝ μ·v
+    // 压力差大但速度低 → 残差大（堵料预兆）
+    const dieAvgT = ['TT-DIE-T.PV','TT-DIE-TM.PV','TT-DIE-M.PV','TT-DIE-BM.PV','TT-DIE-B.PV']
+      .map(k => state[k]?.value ?? 75).reduce((a,b)=>a+b,0)/5;
+    const muRel = Math.exp((90 - dieAvgT) * 0.025);  // 黏度温度依赖（Arrhenius 简化）
+    const speedAvg = ['EXT-T.SPEED','EXT-M.SPEED','EXT-B.SPEED']
+      .map(k => state[k]?.value ?? 5).reduce((a,b)=>a+b,0)/3;
+    const pAvg = ['EXT-T.PRESSURE','EXT-M.PRESSURE','EXT-B.PRESSURE']
+      .map(k => state[k]?.value ?? 18).reduce((a,b)=>a+b,0)/3;
+    const expectedP = 14 * muRel * (speedAvg / 5);
+    const lMom = Math.abs(pAvg - expectedP) / expectedP;
+
+    // L_energy: 能量平衡 — 模头温度跟随 SP 的 PDE 残差
+    const tempErr = ['TT-DIE-T','TT-DIE-TM','TT-DIE-M','TT-DIE-BM','TT-DIE-B']
+      .map(k => Math.abs((state[`${k}.PV`]?.value ?? 75) - (SETPOINTS[`${k}.SP`] ?? 75)) / 75)
+      .reduce((a,b)=>a+b,0) / 5;
+    const lEng = tempErr;
+
+    // 总 loss 与 NTK-inspired 自适应权重（按 inverse-magnitude）
+    const eps = 1e-6;
+    const invs = [1/(lData+eps), 1/(lCont+eps), 1/(lMom+eps), 1/(lEng+eps)];
+    const sum = invs.reduce((a,b)=>a+b,0);
+    const lambdas = invs.map(x => x / sum);
+    const lTotal = lambdas[0]*lData + lambdas[1]*lCont + lambdas[2]*lMom + lambdas[3]*lEng;
+
+    // 物理一致性指数 PCI
+    const pci = Math.max(0, 1 - Math.max(lCont, lMom, lEng) * 5);
+
+    // 累计 epoch（每 10s +1）
+    const now = Date.now();
+    if (now - pinnLastEpochAt > 10000) { pinnEpoch += 1; pinnLastEpochAt = now; }
+
+    return {
+      epoch: pinnEpoch,
+      losses: {
+        data: lData, continuity: lCont, momentum: lMom, energy: lEng, total: lTotal,
+      },
+      lambdas: { data: lambdas[0], continuity: lambdas[1], momentum: lambdas[2], energy: lambdas[3] },
+      pci, mu_rel: muRel, expected_pressure: expectedP, actual_pressure: pAvg,
+      die_avg_temp: dieAvgT, in_flux: inFlux, out_flux: outFlux,
+    };
+  }
+
+  // ─── Flow field & 场协同分析 ──────────────────────────────────────────
+  // 模头纵剖面：长度方向 N=20 网格点，5 个温区轴向布置
+  // 速度场 v(x,y)：抛物线径向分布 + 沿轴向线性减小
+  // 温度场 T(x,y)：5 区温度沿轴向插值
+  // 场协同角 β(x,y) = arccos((∇v·∇T) / (|∇v||∇T|))
+  function computeFlowField() {
+    const N = 20, M = 8;  // 轴向 N 段 × 径向 M 段
+    const T_zones = ['TT-DIE-T.PV','TT-DIE-TM.PV','TT-DIE-M.PV','TT-DIE-BM.PV','TT-DIE-B.PV']
+      .map(k => state[k]?.value ?? 75);
+    // 入口速度 = 三段挤出机平均（cm/s）
+    const vIn = (state['EXT-T.SPEED']?.value + state['EXT-M.SPEED']?.value + state['EXT-B.SPEED']?.value) / 3 * 1.2 || 6;
+    const vOut = (state['TAKEUP.SPEED']?.value ?? 5) * 1.0;
+    const dieAvgT = T_zones.reduce((a,b)=>a+b,0)/5;
+    const muRel = Math.exp((90 - dieAvgT) * 0.025);
+
+    const grid = [];      // [N][M] = { vx, vy, T, beta, fc }
+    for (let i = 0; i < N; i += 1) {
+      const row = [];
+      const xi = i / (N - 1);  // 轴向 0..1
+      for (let j = 0; j < M; j += 1) {
+        const yj = (j - (M - 1) / 2) / ((M - 1) / 2);  // 径向 -1..1
+        // 速度: 抛物线径向 v(y) = vmean·(1 - y²)，轴向 vmean 从 vIn 线性到 vOut
+        const vmean = vIn + (vOut - vIn) * xi;
+        const vx = vmean * (1 - yj * yj * 0.85);
+        const vy = -yj * 0.06 * vmean * (1 - xi);  // 入口收敛微小径向分量
+        // 温度：5 区线性插值 + 中心略低（橡胶聚集吸热）
+        const zoneIdx = Math.min(4, Math.floor(xi * 5));
+        const zoneFrac = (xi * 5) - zoneIdx;
+        const Twall = T_zones[zoneIdx] + (T_zones[Math.min(4, zoneIdx+1)] - T_zones[zoneIdx]) * zoneFrac;
+        const T = Twall - (1 - yj * yj) * 1.2;     // 中心比壁面低 1.2°C
+        row.push({ vx, vy, T, x: xi, y: yj, twall: Twall, vmean });
+      }
+      grid.push(row);
+    }
+    // 计算 ∇v 与 ∇T，再算 β
+    let betaSum = 0, fcSum = 0, count = 0;
+    const histogram = new Array(9).fill(0);  // β 分布 0-90° 分 9 桶（每 10°）
+    for (let i = 1; i < N - 1; i += 1) {
+      for (let j = 1; j < M - 1; j += 1) {
+        const c = grid[i][j];
+        const dvdx = (grid[i+1][j].vx - grid[i-1][j].vx) / 2;
+        const dvdy = (grid[i][j+1].vx - grid[i][j-1].vx) / 2;
+        const dTdx = (grid[i+1][j].T - grid[i-1][j].T) / 2;
+        const dTdy = (grid[i][j+1].T - grid[i][j-1].T) / 2;
+        const gradV = Math.sqrt(dvdx*dvdx + dvdy*dvdy) + 1e-9;
+        const gradT = Math.sqrt(dTdx*dTdx + dTdy*dTdy) + 1e-9;
+        const dot = dvdx*dTdx + dvdy*dTdy;
+        const cosB = Math.max(-1, Math.min(1, dot / (gradV * gradT)));
+        const beta = Math.acos(Math.abs(cosB)) * 180 / Math.PI;  // 0..90°
+        c.beta = beta;
+        c.fc = Math.abs(cosB) * gradV * gradT;
+        betaSum += beta;
+        fcSum += c.fc;
+        const bin = Math.min(8, Math.floor(beta / 10));
+        histogram[bin] += 1;
+        count += 1;
+      }
+    }
+    return {
+      grid, N, M,
+      mean_beta: betaSum / count,
+      synergy_index_fc: fcSum / count,
+      mixing_index_pi: 1 - (betaSum / count) / 90,  // β 越小混合越好
+      histogram,
+      die_avg_temp: dieAvgT,
+      mu_rel: muRel,
+      v_inlet: vIn,
+      v_outlet: vOut,
+      zone_temps: T_zones,
+    };
+  }
+
   // Initialize state
   function noise(r, frac = 0.005) {
     return (Math.random() - 0.5) * 2 * r * frac;
@@ -945,6 +1090,20 @@
     if (method === 'POST' && path === '/api/demo/scenario/start') { startScenario(); return jsonResponse({ started: true }); }
     if (method === 'POST' && path === '/api/demo/scenario/stop') { scenarioPlayer = null; wsBroadcast({ type: 'scenario_end' }); return jsonResponse({ stopped: true }); }
 
+    // PINN model state (4 loss components + adaptive λ + PCI)
+    if (method === 'GET' && path === '/api/pinn/state') {
+      return jsonResponse({
+        ...computePinnLoss(),
+        confidence: dynamicConfidence(),
+        source: pinnSource,
+        ts: Date.now(),
+      });
+    }
+    // Flow field snapshot (网格 + β 协同角分布 + 混合指数)
+    if (method === 'GET' && path === '/api/flow-field/snapshot') {
+      return jsonResponse(computeFlowField());
+    }
+
 
     // Device & signals
     if (method === 'GET' && path === '/api/device') return jsonResponse(DEVICE);
@@ -1080,6 +1239,19 @@
         const props = body?.proposed_setpoints || {};
         for (const [tag, v] of Object.entries(props)) SETPOINTS[tag] = v;
         return jsonResponse({ id: 'cycle-advisory', overall_status: 'applied', applied_count: Object.keys(props).length, rejected_count: 0, proposals: [] });
+      }
+      if (path === '/api/control/setpoint') {
+        // Direct SP write — used by flow-field scenario switcher / demo manual override
+        const tag = body?.tag, value = Number(body?.value);
+        if (!tag || !isFinite(value)) return jsonResponse({ error: { message: 'tag + value required' } }, 400);
+        const prev = SETPOINTS[tag];
+        SETPOINTS[tag] = value;
+        // Mirror PV side too if SP→PV pair (so temp zones respond visually)
+        const pvTag = tag.replace('.SP', '.PV');
+        if (state[pvTag]) {
+          // schedule SETPOINTS but keep state value evolving via tick (gradual)
+        }
+        return jsonResponse({ ok: true, tag, prev, value });
       }
       if (path === '/api/control/estop') {
         estopActive = true;
