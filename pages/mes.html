@@ -52,12 +52,13 @@
   .wo-eyebrow .badge { font-size: 12px; }
   .wo-num {
     font-family: var(--ff-data);
-    font-size: 38px;
+    font-size: 28px;
     font-weight: 400;
     color: var(--fg-primary);
     letter-spacing: var(--tracking-mega);
     line-height: 1;
     font-variant-numeric: tabular-nums;
+    white-space: nowrap;
   }
   .wo-num b {
     color: var(--accent);
@@ -74,12 +75,13 @@
   .wo-head-right { display: flex; flex-direction: column; gap: 6px; align-items: flex-end; }
   .wo-progress-num {
     font-family: var(--ff-data);
-    font-size: 68px;
+    font-size: 50px;
     font-weight: 300;
     color: var(--accent);
     letter-spacing: var(--tracking-mega);
     line-height: 1;
     font-variant-numeric: tabular-nums;
+    white-space: nowrap;
   }
   .wo-progress-num .u {
     font-size: 21px;
@@ -144,26 +146,29 @@
   }
   .wo-meta-cell {
     background: var(--bg-panel);
-    padding: var(--sp-3) var(--sp-4);
-    display: flex; flex-direction: column; gap: 4px;
+    padding: 8px 10px;
+    display: flex; flex-direction: column; gap: 3px;
+    min-width: 0; overflow: hidden;
   }
   .wo-meta-label {
     font-family: var(--ff-data);
-    font-size: 12px;
+    font-size: 10px;
     color: var(--fg-tertiary);
-    letter-spacing: var(--tracking-mega-wide);
+    letter-spacing: 0.06em;
     text-transform: uppercase;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   }
   .wo-meta-value {
     font-family: var(--ff-data);
-    font-size: 21px;
+    font-size: 16px;
     font-weight: 400;
     color: var(--fg-primary);
     letter-spacing: var(--tracking-tight);
     line-height: 1.2;
     font-variant-numeric: tabular-nums;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   }
-  .wo-meta-value.cn { font-family: var(--ff-cn); font-size: 17px; }
+  .wo-meta-value.cn { font-family: var(--ff-cn); font-size: 14px; }
 
   /* Next workorder is dimmer */
   .wo-card.next .wo-num { color: var(--fg-secondary); }
@@ -838,7 +843,7 @@ function tick() {
 }
 tick(); setInterval(tick, 1000);
 </script>
-<script src="../demo-mock.js?v=1777768966"></script>
-<script src="../live.js?v=1777768966"></script>
+<script src="../demo-mock.js?v=1777769149"></script>
+<script src="../live.js?v=1777769149"></script>
 </body>
 </html>
