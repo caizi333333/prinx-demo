@@ -614,7 +614,7 @@
 
         <div class="alarm-row sev-c4">
           <div class="sev-edge"></div>
-          <div class="alarm-time">14:00:00<br><span class="ms">.007</span></div>
+          <div class="alarm-time">16:01:23<br><span class="ms">.007</span></div>
           <div class="alarm-tag">SHIFT-IN</div>
           <div class="alarm-msg">B 班接班 · 李振华 (LV2) · 王建国 (LV1) 上岗</div>
           <div class="alarm-source">SYSTEM<br><span class="alarm-source-line">↳ 班次切换</span></div>
@@ -653,7 +653,7 @@
             14 条 · 已显示 <b>14</b> · 未确认 <b style="color:var(--status-alarm)">2</b> · 待处置 <b>2</b>
           </div>
           <div>
-            班次启动至今 <b>14:00:00</b> · 报警密度 <b>4.2/H</b> · 低于目标 6.0/H
+            班次启动至今 <b>16:00</b> · 报警密度 <b>4.2/H</b> · 低于目标 6.0/H
           </div>
         </div>
 
@@ -667,7 +667,7 @@
     <div class="kpibar-section">
       <div class="kpibar-section-label">
         <span>SHIFT TODAY · B 班</span>
-        <span>14:00 · 03:42 ELAPSED</span>
+        <span id="shift-elapsed">16:00 · LIVE</span>
       </div>
       <div class="kpi is-accent">
         <div class="kpi-label">报警总数<span class="unit">COUNT</span></div>
@@ -792,9 +792,28 @@ function tick() {
     [d.getHours(), d.getMinutes(), d.getSeconds()].map(n => String(n).padStart(2,'0')).join(':');
 }
 tick(); setInterval(tick, 1000);
+
+// Dynamic shift label (B 班 16:00-24:00, A 8-16, C 0-8)
+function updateShiftBar() {
+  const d = new Date();
+  const h = d.getHours();
+  let shift = 'B', startH = 16;
+  if (h >= 8 && h < 16) { shift = 'A'; startH = 8; }
+  else if (h >= 0 && h < 8) { shift = 'C'; startH = 0; }
+  const start = new Date(d); start.setHours(startH, 0, 0, 0);
+  const elapsedMin = Math.max(0, Math.floor((d - start) / 60000));
+  const eh = Math.floor(elapsedMin / 60);
+  const em = elapsedMin % 60;
+  const el = document.getElementById('shift-elapsed');
+  if (el) el.textContent = `${String(startH).padStart(2,'0')}:00 · ${String(eh).padStart(2,'0')}:${String(em).padStart(2,'0')} ELAPSED`;
+  // Header chip
+  const head = document.querySelector('.kpibar-section-label span:first-child');
+  if (head && head.textContent.startsWith('SHIFT TODAY')) head.textContent = `SHIFT TODAY · ${shift} 班`;
+}
+updateShiftBar(); setInterval(updateShiftBar, 30000);
 </script>
-<script src="../demo-mock.js?v=1777801526"></script>
-<script src="../live.js?v=1777801526"></script>
+<script src="../demo-mock.js?v=1777810790"></script>
+<script src="../live.js?v=1777810790"></script>
 <script>
 (function () {
   const SEV_CLASS = { 1: 'sev-c1', 2: 'sev-c2', 3: 'sev-c3', 4: 'sev-c4' };
