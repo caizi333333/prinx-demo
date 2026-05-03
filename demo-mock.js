@@ -131,7 +131,7 @@
     'TT-DIE-T.SP': 75.0, 'TT-DIE-TM.SP': 75.0, 'TT-DIE-M.SP': 75.0, 'TT-DIE-BM.SP': 75.0, 'TT-DIE-B.SP': 75.0,
     'PT-150T.PV': 18.6, 'PT-150M.PV': 18.2, 'PT-150B.PV': 17.4, 'PT-90.PV': 20.1,
     'EXT-T.PRESSURE': 18.6, 'EXT-M.PRESSURE': 18.2, 'EXT-B.PRESSURE': 17.4, 'EXT-90.PRESSURE': 20.1,
-    'EXT-T.MELT_TEMP': 70, 'EXT-M.MELT_TEMP': 70, 'EXT-B.MELT_TEMP': 73, 'EXT-90.MELT_TEMP': 85,
+    'EXT-T.MELT_TEMP': 95, 'EXT-M.MELT_TEMP': 96, 'EXT-B.MELT_TEMP': 94, 'EXT-90.MELT_TEMP': 102,
     'MOT-150T.CURRENT': 95, 'MOT-150M.CURRENT': 92, 'MOT-150B.CURRENT': 78, 'MOT-90.CURRENT': 110,
     'TAKEUP.SPEED': 5.0, 'TAKEUP.SPEED.SP': 5.0, 'REEL.LENGTH': 75.0,
     'SHRINK.PV': 4.0, 'SCL-FRONT.PV': 0.750, 'SCL-FRONT.SP': 0.750,
@@ -508,7 +508,7 @@
     // 5. 挤出机熔体温度 = die_avg + 12 + 0.6 * (speed - 5)
     for (const extId of ['T','M','B','90']) {
       const speed = state[`EXT-${extId}.SPEED`]?.value ?? 5;
-      const baseRef = extId === '90' ? 85 : extId === 'B' ? 73 : 70;
+      const baseRef = extId === '90' ? 102 : extId === 'B' ? 94 : extId === 'M' ? 96 : 95;
       const tag = `EXT-${extId}.MELT_TEMP`;
       if (state[tag]) t[tag] = baseRef + (speed - (extId === '90' ? 7.6 : extId === 'B' ? 4.2 : 5.1)) * 1.5;
     }

@@ -401,9 +401,9 @@
               <div class="wo-spec"><b>半钢胎侧 22"</b> · 规格 PS1226 · 配方 S6/2 v2.4 · B 班 04-27</div>
             </div>
             <div class="wo-head-right">
-              <div class="wo-progress-num">7.5<span class="u">%</span></div>
-              <div class="wo-progress-meta">已生 <b>75.0 m</b> / 计划 <b>1000 m</b></div>
-              <div class="wo-progress-meta">预计完成 <b>17:14</b> · 剩余 <b>2:42:11</b></div>
+              <div class="wo-progress-num" id="wo-progress-pct">7.5<span class="u">%</span></div>
+              <div class="wo-progress-meta">已生 <b id="wo-produced">75.0 m</b> / 计划 <b>1000 m</b></div>
+              <div class="wo-progress-meta">预计完成 <b id="wo-eta-time">--</b> · 剩余 <b id="wo-eta-rem">--</b></div>
             </div>
           </div>
 
@@ -488,7 +488,7 @@
             <div class="wo-head-right">
               <div class="wo-progress-num">0<span class="u">%</span></div>
               <div class="wo-progress-meta">计划 <b>800 m</b></div>
-              <div class="wo-progress-meta">预计开工 <b>17:14</b></div>
+              <div class="wo-progress-meta">预计开工 <b id="wo-next-start">--</b></div>
             </div>
           </div>
 
@@ -842,8 +842,39 @@ function tick() {
     [d.getHours(), d.getMinutes(), d.getSeconds()].map(n => String(n).padStart(2,'0')).join(':');
 }
 tick(); setInterval(tick, 1000);
+
+// Dynamic ETA based on current produced + takeup speed (m/min)
+function updateEta() {
+  const planQty = 1000;       // m
+  const speed = 5.0;          // m/min — TAKEUP.SPEED typical for 22" sidewall
+  // Read live produced from data-signal binding (live.js may have updated #wo-produced)
+  let produced = 75.0;
+  const pEl = document.getElementById('wo-produced');
+  if (pEl) {
+    const m = pEl.textContent.match(/(\d+\.?\d*)/);
+    if (m) produced = parseFloat(m[1]);
+  }
+  const remainingM = Math.max(0, planQty - produced);
+  const remainingMin = remainingM / speed;
+  const eta = new Date(Date.now() + remainingMin * 60 * 1000);
+  const fmt = (d) => [d.getHours(), d.getMinutes()].map(n => String(n).padStart(2,'0')).join(':');
+  const fmtRem = (min) => {
+    const h = Math.floor(min / 60), m = Math.floor(min % 60), s = Math.floor((min - Math.floor(min)) * 60);
+    return `${h}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+  };
+  const etaEl = document.getElementById('wo-eta-time');
+  const remEl = document.getElementById('wo-eta-rem');
+  const nextEl = document.getElementById('wo-next-start');
+  if (etaEl) etaEl.textContent = fmt(eta);
+  if (remEl) remEl.textContent = fmtRem(remainingMin);
+  if (nextEl) nextEl.textContent = fmt(eta);   // Next workorder starts when current finishes
+  // Update progress %
+  const pctEl = document.getElementById('wo-progress-pct');
+  if (pctEl) pctEl.innerHTML = (produced / planQty * 100).toFixed(1) + '<span class="u">%</span>';
+}
+updateEta(); setInterval(updateEta, 5000);
 </script>
-<script src="../demo-mock.js?v=1777769149"></script>
-<script src="../live.js?v=1777769149"></script>
+<script src="../demo-mock.js?v=1777801526"></script>
+<script src="../live.js?v=1777801526"></script>
 </body>
 </html>

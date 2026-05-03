@@ -160,7 +160,7 @@
           <div class="data-grid cols-3" style="margin-top:0">
             <div class="data-cell"><div class="data-cell-label"><span class="data-cell-id">SPEED</span>转速</div><div class="data-cell-value">5.1<span class="u">RPM</span></div><div class="data-cell-sub"><span>SP 5.0</span><span style="color:var(--accent)">+0.1</span></div></div>
             <div class="data-cell"><div class="data-cell-label"><span class="data-cell-id">PRESSURE</span>压力</div><div class="data-cell-value">18.6<span class="u">MPA</span></div><div class="data-cell-sub"><span>SP 18.5</span><span>正常</span></div></div>
-            <div class="data-cell"><div class="data-cell-label"><span class="data-cell-id">TEMP-MELT</span>胶温</div><div class="data-cell-value">70<span class="u">°C</span></div><div class="data-cell-sub"><span>SP 70</span><span>±0</span></div></div>
+            <div class="data-cell"><div class="data-cell-label"><span class="data-cell-id">TEMP-MELT</span>胶温</div><div class="data-cell-value">96<span class="u">°C</span></div><div class="data-cell-sub"><span>SP 95</span><span style="color:var(--accent)">+1</span></div></div>
             <div class="data-cell"><div class="data-cell-label"><span class="data-cell-id">CURRENT</span>主电机电流</div><div class="data-cell-value">128<span class="u">A</span></div><div class="data-cell-sub"><span>额 160 A</span><span>80%</span></div></div>
             <div class="data-cell"><div class="data-cell-label"><span class="data-cell-id">TORQUE</span>主电机扭矩</div><div class="data-cell-value">82<span class="u">%</span></div><div class="data-cell-sub"><span>峰值 95</span><span>OK</span></div></div>
             <div class="data-cell"><div class="data-cell-label"><span class="data-cell-id">FEED</span>喂料电机</div><div class="data-cell-value">运行</div><div class="data-cell-sub"><span>转速 36 RPM</span></div></div>
@@ -192,9 +192,9 @@
       </div>
       
       <div class="kpi">
-        <div class="kpi-label">实时节拍<span class="unit">PCS/H</span></div>
-        <div class="kpi-value" style="font-size:36px">240</div>
-        <div class="kpi-meta"><span>设计 250</span><span style="color:var(--accent)">96.0%</span></div>
+        <div class="kpi-label">实时产速<span class="unit">M/H</span></div>
+        <div class="kpi-value" style="font-size:36px">300</div>
+        <div class="kpi-meta"><span>设计 320</span><span style="color:var(--accent)">93.8%</span></div>
       </div>
       <div class="kpi">
         <div class="kpi-label">复合宽度<span class="unit">MM</span></div>
@@ -280,7 +280,7 @@
       <div class="alarm-strip-feed">
         <span class="ts">14:31:42</span>
         <span class="lvl lvl-h"></span>
-        <span>下挤出机胶温偏高（73.4°C / 限值 72°C）</span>
+        <span>下挤出机胶温偏高（98.4°C / 限值 100°C）</span>
       </div>
     </div>
     <div class="action-buttons">
@@ -303,7 +303,7 @@ function tick() {
 }
 tick(); setInterval(tick, 1000);
 </script>
-<script src="../demo-mock.js?v=1777769149"></script>
-<script src="../live.js?v=1777769149"></script>
+<script src="../demo-mock.js?v=1777801526"></script>
+<script src="../live.js?v=1777801526"></script>
 </body>
 </html>
