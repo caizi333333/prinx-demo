@@ -14,20 +14,24 @@
   }
   .stub-grid {
     display: grid;
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-rows: 1fr 1fr;
     gap: var(--sp-2);
     height: 100%;
+    min-height: 0;
   }
   .stub-tile {
     background: var(--bg-panel);
     border: 1px solid var(--line-subtle);
-    padding: var(--sp-3);
+    padding: 12px 14px;
     display: flex;
     flex-direction: column;
-    gap: var(--sp-3);
+    gap: var(--sp-2);
     position: relative;
     overflow: hidden;
+    min-width: 0; min-height: 0;
   }
+  .stub-tile-title { font-size: 14px !important; }
   .stub-tile-eyebrow {
     font-family: var(--ff-data);
     font-size: 10px;
@@ -203,6 +207,67 @@
         <div class="kpi-meta"><span>±0.04</span><span>Cpk <b>1.42</b></span></div>
       </div>
     </div>
+
+    <div class="kpibar-section">
+      <div class="kpibar-section-label">
+        <span>SPC 控制图</span>
+        <span>UCL/LCL</span>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:10px;font-family:var(--ff-data);font-size:11px">
+        <div style="padding:8px 10px;background:var(--bg-canvas);border:1px solid var(--line-subtle)">
+          <div style="display:flex;justify-content:space-between;color:var(--fg-tertiary);margin-bottom:4px">
+            <span>厚度 X-bar</span><span style="color:var(--accent)">3.42 mm</span>
+          </div>
+          <svg width="100%" height="32" viewBox="0 0 240 32" preserveAspectRatio="none">
+            <line x1="0" y1="6" x2="240" y2="6" stroke="#fb4" stroke-width="0.4" stroke-dasharray="2,2"/>
+            <line x1="0" y1="16" x2="240" y2="16" stroke="#5a8" stroke-width="0.4"/>
+            <line x1="0" y1="26" x2="240" y2="26" stroke="#fb4" stroke-width="0.4" stroke-dasharray="2,2"/>
+            <polyline points="0,18 20,16 40,17 60,15 80,16 100,18 120,15 140,16 160,17 180,16 200,15 220,16 240,15" fill="none" stroke="#00E5FF" stroke-width="1.2"/>
+          </svg>
+          <div style="display:flex;justify-content:space-between;color:var(--fg-tertiary);font-size:10px;margin-top:2px">
+            <span>UCL 3.50</span><span>LCL 3.30</span>
+          </div>
+        </div>
+        <div style="padding:8px 10px;background:var(--bg-canvas);border:1px solid var(--line-subtle)">
+          <div style="display:flex;justify-content:space-between;color:var(--fg-tertiary);margin-bottom:4px">
+            <span>宽度 X-bar</span><span style="color:var(--accent)">165.0 mm</span>
+          </div>
+          <svg width="100%" height="32" viewBox="0 0 240 32" preserveAspectRatio="none">
+            <line x1="0" y1="6" x2="240" y2="6" stroke="#fb4" stroke-width="0.4" stroke-dasharray="2,2"/>
+            <line x1="0" y1="16" x2="240" y2="16" stroke="#5a8" stroke-width="0.4"/>
+            <line x1="0" y1="26" x2="240" y2="26" stroke="#fb4" stroke-width="0.4" stroke-dasharray="2,2"/>
+            <polyline points="0,16 20,15 40,17 60,16 80,15 100,17 120,18 140,16 160,15 180,16 200,17 220,16 240,15" fill="none" stroke="#7DD3FC" stroke-width="1.2"/>
+          </svg>
+          <div style="display:flex;justify-content:space-between;color:var(--fg-tertiary);font-size:10px;margin-top:2px">
+            <span>UCL 168</span><span>LCL 162</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="kpibar-section">
+      <div class="kpibar-section-label">
+        <span>近 1h 越限</span>
+        <span>VIOLATIONS</span>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:6px;font-family:var(--ff-data);font-size:11px">
+        <div style="display:grid;grid-template-columns:1fr 30px;gap:8px;padding:6px 10px;background:var(--bg-canvas);border-left:2px solid var(--status-warning)">
+          <span style="color:var(--fg-secondary)">TT-DIE-BM</span>
+          <span style="text-align:right;color:var(--status-warning)"><b>3</b></span>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 30px;gap:8px;padding:6px 10px;background:var(--bg-canvas);border-left:2px solid var(--status-warning)">
+          <span style="color:var(--fg-secondary)">SCL-REAR</span>
+          <span style="text-align:right;color:var(--status-warning)"><b>2</b></span>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 30px;gap:8px;padding:6px 10px;background:var(--bg-canvas)">
+          <span style="color:var(--fg-secondary)">FLT-06.PRESSURE</span>
+          <span style="text-align:right;color:var(--fg-tertiary)"><b>1</b></span>
+        </div>
+        <div style="margin-top:4px;padding:6px 10px;display:flex;justify-content:space-between;color:var(--fg-tertiary);font-size:10px">
+          <span>合计</span><span style="color:var(--fg-primary)"><b>6</b> 次</span>
+        </div>
+      </div>
+    </div>
   </aside>
 
   <!-- ACTION BAR -->
@@ -238,7 +303,7 @@ function tick() {
 }
 tick(); setInterval(tick, 1000);
 </script>
-<script src="../demo-mock.js?v=1777732137"></script>
-<script src="../live.js?v=1777732137"></script>
+<script src="../demo-mock.js?v=1777768966"></script>
+<script src="../live.js?v=1777768966"></script>
 </body>
 </html>

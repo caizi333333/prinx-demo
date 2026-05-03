@@ -6,6 +6,39 @@
 
 @import url('https://fonts.googleapis.com/css2?family=Azeret+Mono:wght@300;400;500;600&family=Onest:wght@300;400;500;600;700&family=Noto+Sans+SC:wght@300;400;500;700&display=swap');
 
+/* === v0.5.3 Chinese-friendly text wrapping (sitewide base) === */
+html, body {
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+  line-break: strict;
+}
+table, td, th {
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+/* Buttons / chips / labels: never break Chinese vertically — ellipsis instead */
+.btn, .chip, .badge, .corner-mark, .topbar-meta-label, .topbar-meta-value,
+.line-chip, .nav-item-label, .stub-tile-tag, .tw-bar .chip,
+.kpi-label, .panel-head, .signal-label, .mode-btn, .mode-btn .mode-sub,
+.canvas-title-eyebrow, .extruder-stat-label, .floater-cell .l1, .floater-cell .l2,
+.signal-meta, .topbar .clock {
+  white-space: nowrap;
+}
+.btn, .chip, .badge, .corner-mark, .nav-item-label,
+.stub-tile-tag, .canvas-title-eyebrow {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* Multi-line zh blocks that SHOULD wrap normally */
+.allow-wrap, .alarm-msg, .cycle-prop-line, .panel-body p,
+.recipe-change-log li, .sample-row, .workorder-meta, .change-summary {
+  white-space: normal;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+/* Code/IDs (PINN model_id, batch IDs etc) — break-all OK */
+code, .id, .mono, .ff-data { word-break: break-all; }
+
 /* --------------------------------------------------------------------------
    1. DESIGN TOKENS
    -------------------------------------------------------------------------- */
