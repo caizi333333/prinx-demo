@@ -75,7 +75,7 @@
         <span class="topbar-meta-label">STATUS</span>
         <span class="badge badge-running">运行</span>
       </div>
-      <div class="clock" id="clock">14:32:08</div>
+      <div class="clock" id="clock">--:--:--</div>
       <div class="user-chip">
         <div class="user-avatar">LZ</div>
         <div class="user-chip-text"><b>李振华</b><span>LV2</span></div>
@@ -143,7 +143,7 @@
         <div class="canvas-title-text">生产报表 · 班次/日/周/月</div>
       </div>
       <div class="canvas-actions">
-        <button class="btn">查询...</button><button class="btn btn-primary">导出 Excel</button>
+        <button class="btn">查询...</button><button class="btn btn-primary" data-export="report-shifts" data-fmt="csv">导出 Excel</button>
       </div>
     </div>
 
@@ -155,7 +155,7 @@
         <span class="chip">周报 WEEKLY</span>
         <span class="chip">月报 MONTHLY</span>
         <span class="chip">配方报告 RECIPE</span>
-        <button class="btn" style="margin-left:auto"><span style="font-family:var(--ff-data);font-size:11px;letter-spacing:var(--tracking-wide);text-transform:uppercase">↗ 导出 PDF</span></button>
+        <button class="btn" style="margin-left:auto" data-export="report-shifts" data-fmt="pdf"><span style="font-family:var(--ff-data);font-size:11px;letter-spacing:var(--tracking-wide);text-transform:uppercase">↗ 导出 PDF</span></button>
       </div>
       <div class="stub-tile" style="overflow:auto">
         <table class="tbl" style="width:100%">
@@ -228,7 +228,7 @@
     </div>
     <div class="action-buttons">
       <button class="btn btn-major">打印</button>
-      <button class="btn btn-major btn-primary">导出 PDF</button>
+      <button class="btn btn-major btn-primary" data-export="report-shifts" data-fmt="pdf">导出 PDF</button>
     </div>
     <div style="padding: 0;">
       <button class="btn-estop">E-STOP<br>急停</button>
@@ -246,7 +246,7 @@ function tick() {
 }
 tick(); setInterval(tick, 1000);
 </script>
-<script src="../demo-mock.js?v=1777810790"></script>
-<script src="../live.js?v=1777810790"></script>
+<script src="../demo-mock.js?v=1777813734"></script>
+<script src="../live.js?v=1777813734"></script>
 </body>
 </html>

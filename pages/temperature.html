@@ -276,7 +276,7 @@
         <span class="topbar-meta-label">STATUS</span>
         <span class="badge badge-running">运行</span>
       </div>
-      <div class="clock" id="clock">14:32:08</div>
+      <div class="clock" id="clock">--:--:--</div>
       <div class="user-chip">
         <div class="user-avatar">LZ</div>
         <div class="user-chip-text"><b>李振华</b><span>LV2</span></div>
@@ -345,9 +345,9 @@
         <div class="canvas-title-text">23 个温区实时监控 · 浦林成山四复合挤出生产线</div>
       </div>
       <div class="canvas-actions">
-        <button class="btn btn-ghost"><span style="font-family:var(--ff-data);font-size: 13px;letter-spacing:var(--tracking-wide);text-transform:uppercase;color:var(--fg-tertiary)">↓ DOWNLOAD TCU</span></button>
-        <button class="btn">读取配方</button>
-        <button class="btn btn-primary">应用温控配方</button>
+        <button class="btn btn-ghost" data-export="tcu-config" data-fmt="csv"><span style="font-family:var(--ff-data);font-size: 13px;letter-spacing:var(--tracking-wide);text-transform:uppercase;color:var(--fg-tertiary)">↓ DOWNLOAD TCU</span></button>
+        <button class="btn" id="tcu-read">读取配方</button>
+        <button class="btn btn-primary" id="tcu-apply">应用温控配方</button>
       </div>
     </div>
 
@@ -831,8 +831,26 @@ function tick() {
     [d.getHours(), d.getMinutes(), d.getSeconds()].map(n => String(n).padStart(2,'0')).join(':');
 }
 tick(); setInterval(tick, 1000);
+
+// Temperature page actions
+document.getElementById('tcu-read')?.addEventListener('click', async () => {
+  try {
+    const r = await PRINX.api.get('/api/recipes/in-use');
+    alert(`已读取当前 in_use 配方:\n${r.id} (${r.name})\n模头温区: ${Object.keys(r.tcu_zones || {}).length} 个 SP`);
+  } catch (e) { alert('读取失败: ' + e.message); }
+});
+document.getElementById('tcu-apply')?.addEventListener('click', async () => {
+  const u = (window.PRINX?.user?.()) || { name: '操作员', level: 3 };
+  if (u.level < 3) { alert('应用温控配方需要 LV3+'); return; }
+  if (!confirm('确认下传当前配方的温控部分到 PLC？\n将触发 60s 渐变切换动画。')) return;
+  try {
+    const inUse = await PRINX.api.get('/api/recipes/in-use');
+    await PRINX.api.post(`/api/recipes/${inUse.id}/apply`, { operator: u.name });
+    // toast handled by demo-mock; banner by changeover_start event
+  } catch (e) { alert('应用失败: ' + e.message); }
+});
 </script>
-<script src="../demo-mock.js?v=1777810790"></script>
-<script src="../live.js?v=1777810790"></script>
+<script src="../demo-mock.js?v=1777813734"></script>
+<script src="../live.js?v=1777813734"></script>
 </body>
 </html>

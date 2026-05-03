@@ -998,9 +998,13 @@
       if (m) {
         const r = RECIPES.find((x) => x.id === m[1]);
         if (!r) return jsonResponse({ error: 'not found' }, 404);
+        const prev = RECIPES.find(o => o.status === 'in_use' && o.id !== r.id);
         for (const other of RECIPES) if (other.status === 'in_use' && other.id !== r.id) other.status = 'archived';
         r.status = 'in_use';
-        return jsonResponse({ ...r, applied: Object.keys(r.parameters), rejected: [] });
+        // Trigger 60s changeover animation (banner + ease-in-out SP transition)
+        triggerChangeover(prev, r, 60);
+        const allParams = { ...(r.parameters || {}), ...(r.tcu_zones || {}) };
+        return jsonResponse({ ...r, applied: Object.keys(allParams), rejected: [] });
       }
     }
 

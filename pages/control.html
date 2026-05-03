@@ -222,7 +222,7 @@
         <span class="topbar-meta-label">STATUS</span>
         <span class="badge badge-running">运行</span>
       </div>
-      <div class="clock" id="clock">14:32:08</div>
+      <div class="clock" id="clock">--:--:--</div>
 
       <div class="user-chip">
         <div class="user-avatar" id="user-avatar">LZ</div>
@@ -361,8 +361,8 @@
 
 </div>
 
-<script src="../demo-mock.js?v=1777810790"></script>
-<script src="../live.js?v=1777810790"></script>
+<script src="../demo-mock.js?v=1777813734"></script>
+<script src="../live.js?v=1777813734"></script>
 <script>
 const GATE_META = {
   source:    { cn: '数据源',  tip: 'Gate 7 (v0.5)：PINN 处于 mock_fallback 时不允许 auto_tune（防伪劣模型直写 PLC）' },
@@ -572,6 +572,12 @@ loadStats();
 loadHistory();
 loadPinn();
 setInterval(() => { loadStats(); loadPinn(); }, 5000);
+</script>
+<script>
+(function tickClock(){
+  function t(){const d=new Date();const el=document.getElementById('clock');if(el)el.textContent=[d.getHours(),d.getMinutes(),d.getSeconds()].map(n=>String(n).padStart(2,'0')).join(':');}
+  t(); setInterval(t,1000);
+})();
 </script>
 </body>
 </html>

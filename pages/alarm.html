@@ -294,7 +294,7 @@
         <span class="topbar-meta-label">STATUS</span>
         <span class="badge badge-warning">2 ALARM</span>
       </div>
-      <div class="clock" id="clock">14:32:08</div>
+      <div class="clock" id="clock">--:--:--</div>
       <div class="user-chip">
         <div class="user-avatar">LZ</div>
         <div class="user-chip-text"><b>李振华</b><span>LV2</span></div>
@@ -363,7 +363,7 @@
         <div class="canvas-title-text">报警管理 · 4 级分级 · 聚合归因</div>
       </div>
       <div class="canvas-actions">
-        <button class="btn btn-ghost"><span style="font-family:var(--ff-data);font-size: 13px;letter-spacing:var(--tracking-wide);text-transform:uppercase;color:var(--fg-tertiary)">↗ 导出审计日志</span></button>
+        <button class="btn btn-ghost" data-export="alarm-history" data-fmt="csv"><span style="font-family:var(--ff-data);font-size: 13px;letter-spacing:var(--tracking-wide);text-transform:uppercase;color:var(--fg-tertiary)">↗ 导出审计日志</span></button>
         <button class="btn">配置抑制规则</button>
         <button class="btn btn-primary">确认全部 (2)</button>
       </div>
@@ -812,8 +812,8 @@ function updateShiftBar() {
 }
 updateShiftBar(); setInterval(updateShiftBar, 30000);
 </script>
-<script src="../demo-mock.js?v=1777810790"></script>
-<script src="../live.js?v=1777810790"></script>
+<script src="../demo-mock.js?v=1777813734"></script>
+<script src="../live.js?v=1777813734"></script>
 <script>
 (function () {
   const SEV_CLASS = { 1: 'sev-c1', 2: 'sev-c2', 3: 'sev-c3', 4: 'sev-c4' };

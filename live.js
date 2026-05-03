@@ -1199,6 +1199,76 @@
     };
   }
 
+  // ─── Sitewide export delegation ─────────────────────────────────────
+
+  function csvEscape(v) {
+    if (v == null) return '';
+    const s = String(v);
+    return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+  }
+  function downloadBlob(filename, blob) {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = filename;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
+  }
+  function tableToCsv(tableEl) {
+    if (!tableEl) return '';
+    const rows = [...tableEl.querySelectorAll('tr')];
+    return rows.map(r => [...r.querySelectorAll('th, td')].map(c => csvEscape(c.textContent.trim())).join(',')).join('\n');
+  }
+  async function exportData(name, fmt) {
+    if (fmt === 'pdf') {
+      // Use browser print → user saves as PDF
+      const orig = document.title;
+      document.title = `PRINX_${name}_${new Date().toISOString().slice(0,10)}`;
+      window.print();
+      setTimeout(() => { document.title = orig; }, 500);
+      return;
+    }
+    // fmt === 'csv'
+    let csv = '';
+    let filename = `prinx_${name}_${new Date().toISOString().slice(0,16).replace(/[T:]/g, '-')}.csv`;
+    if (name === 'report-shifts') {
+      csv = tableToCsv(document.querySelector('table.tbl, table'));
+    } else if (name === 'alarm-history') {
+      try {
+        const arr = await PRINX.api.get('/api/alarms');
+        const histRes = await PRINX.api.get('/api/alarms/history?limit=200').catch(() => []);
+        const all = [...arr, ...histRes];
+        const head = ['id', 'tag', 'tier', 'message', 'source', 'state', 'occurred_at', 'count'];
+        csv = head.join(',') + '\n' + all.map(a => head.map(k => csvEscape(k === 'occurred_at' && a[k] ? new Date(a[k]).toISOString() : a[k])).join(',')).join('\n');
+      } catch (e) { csv = 'error,\n' + e.message; }
+    } else if (name === 'trend-current') {
+      // Export current sigHistory snapshot
+      const lines = ['tag,timestamp,value'];
+      for (const [tag, arr] of sigHistory.entries()) {
+        for (const p of arr) lines.push(`${tag},${new Date(p.ts).toISOString()},${p.value}`);
+      }
+      csv = lines.join('\n');
+    } else if (name === 'tcu-config') {
+      try {
+        const r = await PRINX.api.get('/api/recipes/in-use');
+        const lines = ['tag,setpoint_value,unit,zone'];
+        for (const [k, v] of Object.entries(r.tcu_zones || {})) lines.push(`${k},${v},°C,die-head`);
+        for (const [k, v] of Object.entries(r.parameters || {})) lines.push(`${k},${v},,extruder`);
+        csv = `# Recipe ${r.id} (v${r.version})  exported at ${new Date().toISOString()}\n` + lines.join('\n');
+        filename = `prinx_recipe_${r.id}_${new Date().toISOString().slice(0,10)}.csv`;
+      } catch (e) { csv = 'error,\n' + e.message; }
+    } else {
+      csv = 'name,value\nexport,not-implemented\n';
+    }
+    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' });
+    downloadBlob(filename, blob);
+  }
+  document.addEventListener('click', (e) => {
+    const t = e.target.closest('[data-export]');
+    if (!t) return;
+    e.preventDefault();
+    exportData(t.dataset.export, t.dataset.fmt || 'csv');
+  });
+
   // ─── Auto-start ─────────────────────────────────────────────────────────
 
   function start() {
